@@ -8,29 +8,87 @@ Elliquid connects three sides of the liquidity problem:
 2. Elysium projects request liquidity with explicit size, duration, fee and inventory limits.
 3. Strategy execution deploys, monitors and rebalances liquidity according to risk constraints.
 
-The MVP is intentionally adapter-agnostic so Elysium-native AMM integrations can be added without rewriting the capital layer. A future HyperCore adapter can provide hedging and rebalancing once the relevant Elysium/HyperCore write path is available.
+The product is designed around one core loop:
+
+`capital -> vault -> strategy -> liquidity -> fees / PnL -> risk decision -> rebalance`
+
+## Stack
+
+- **Web:** Next.js + React + TypeScript
+- **Wallet / EVM:** wagmi + viem (being wired into the UI)
+- **API:** Hono + TypeScript on Cloudflare Workers
+- **Database:** Cloudflare D1 (SQLite) + Drizzle ORM
+- **Contracts:** Solidity + Foundry
+- **Research later:** Python for strategy research/backtesting
+- **Performance later:** Rust only if execution becomes a measured bottleneck
+
+## Repository layout
+
+    app/                    Next.js App Router
+    components/             React UI
+    lib/                    frontend utilities
+    packages/shared/        shared domain types
+    worker/                 Hono API + D1 database
+    contracts/              Solidity protocol layer
 
 ## Local development
+
+Frontend:
 
     npm install
     npm run dev
 
-Open http://localhost:3000.
+API:
+
+    npm run dev:api
+
+The API uses Cloudflare D1. Create the database first and place the returned ID in `worker/wrangler.jsonc`, then apply migrations.
+
+## Runtime architecture
+
+    Browser
+      |
+      v
+    Next.js
+      |
+      | HTTPS
+      v
+    Hono / Cloudflare Worker
+      |                \
+      v                 v
+    D1 / Drizzle     Elysium RPC
+      |                 |
+      v                 v
+    indexed state    contracts / AMMs
+                        |
+                        v
+                  strategy execution
+
+The execution engine will be introduced inside the Worker runtime as a separate service boundary, not mixed directly into HTTP handlers.
 
 ## Current status
 
-- [x] polished app shell and dashboard
+- [x] application shell and dashboard
 - [x] strategy vault UX
 - [x] project liquidity marketplace UX
 - [x] wallet connection / Elysium testnet targeting
-- [x] vault accounting contract skeleton
+- [x] Solidity vault accounting foundation
 - [x] liquidity mandate contract
-- [ ] AMM adapter
-- [ ] real wallet transactions
+- [x] Cloudflare Worker API foundation
+- [x] D1 schema + initial migration
+- [ ] seed strategy / project registry
+- [ ] authenticated write endpoints
+- [ ] Elysium AMM adapter
+- [ ] real wallet transaction flow
+- [ ] chain event indexer
+- [ ] strategy / allocation engine
+- [ ] rebalance keeper
 - [ ] testnet deployment
-- [ ] strategy keeper / rebalance engine
-- [ ] audited production contracts
+- [ ] contract test suite
+- [ ] audit hardening
 
-## Product rule
+## Safety rule
 
-Elliquid is a capital coordination and execution layer — not a promise of yield. All displayed yield figures in the MVP are demo/model values until backed by reproducible testnet performance data.
+Elliquid is a capital coordination and execution layer — not a promise of yield.
+
+The current UI contains clearly labelled demo/model figures. They must not be presented as real performance. Mainnet deposits require audited contracts, isolated strategy permissions, explicit loss handling, withdrawal controls, transaction idempotency and operational monitoring.
