@@ -1,0 +1,22 @@
+{
+  "name": "elliquid-api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "types": "wrangler types",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.44.7",
+    "hono": "^4.9.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20261005.0",
+    "drizzle-kit": "^0.31.4",
+    "typescript": "^5.8.3",
+    "wrangler": "^4.42.0"
+  }
+}
