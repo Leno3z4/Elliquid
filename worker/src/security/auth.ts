@@ -1,9 +1,15 @@
 import type { Context } from "hono";
 import { and, eq, lt } from "drizzle-orm";
-import { verifyMessage, keccak256, stringToHex } from "viem";
+import { verifyTypedData } from "viem";
 import { drizzle } from "drizzle-orm/d1";
 import { idempotencyKeys } from "../db/schema";
 import type { Env } from "../env";
+import {
+  buildTypedAction,
+  ELLIQUID_EIP712_DOMAIN,
+  ELLIQUID_EIP712_TYPES,
+  getRequestHash,
+} from "@elliquid/shared/signing";
 
 const AUTH_WINDOW_MS = 5 * 60 * 1000;
 const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
@@ -14,37 +20,6 @@ export type SignedRequest = {
   requestHash: `0x${string}`;
   timestamp: number;
 };
-
-function canonicalize(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return "[" + value.map(canonicalize).join(",") + "]";
-  const record = value as Record<string, unknown>;
-  return "{" + Object.keys(record).sort().map((key) => JSON.stringify(key) + ":" + canonicalize(record[key])).join(",") + "}";
-}
-
-export function signedPayloadHash(endpoint: string, action: string, body: unknown) {
-  return keccak256(stringToHex(endpoint + "|" + action + "|" + canonicalize(body)));
-}
-
-function buildMessage(args: {
-  address: string;
-  action: string;
-  endpoint: string;
-  idempotencyKey: string;
-  timestamp: number;
-  requestHash: string;
-}) {
-  return [
-    "Elliquid signed action",
-    "version: 1",
-    `action: ${args.action}`,
-    `endpoint: ${args.endpoint}`,
-    `address: ${args.address}`,
-    `timestamp: ${args.timestamp}`,
-    `idempotency-key: ${args.idempotencyKey}`,
-    `request-hash: ${args.requestHash}`,
-  ].join("\n");
-}
 
 export async function authenticateSignedRequest(
   c: Context<{ Bindings: Env }>,
@@ -70,20 +45,22 @@ export async function authenticateSignedRequest(
   }
 
   const endpoint = new URL(c.req.url).pathname;
-  const requestHash = signedPayloadHash(endpoint, action, body);
-  const message = buildMessage({
-    address: wallet,
+  const requestHash = getRequestHash(endpoint, action, body);
+  const message = buildTypedAction({
     action,
     endpoint,
     idempotencyKey,
-    timestamp,
     requestHash,
+    timestamp,
   });
 
   let valid = false;
   try {
-    valid = await verifyMessage({
+    valid = await verifyTypedData({
       address: wallet as `0x${string}`,
+      domain: ELLIQUID_EIP712_DOMAIN,
+      types: ELLIQUID_EIP712_TYPES,
+      primaryType: "ElliquidAction",
       message,
       signature,
     });
@@ -91,7 +68,7 @@ export async function authenticateSignedRequest(
     valid = false;
   }
 
-  if (!valid) return { error: c.json({ error: "Invalid signed request" }, 401) };
+  if (!valid) return { error: c.json({ error: "Invalid EIP-712 signature" }, 401) };
 
   return {
     wallet: wallet as `0x${string}`,
