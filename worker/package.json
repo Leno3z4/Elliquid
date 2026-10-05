@@ -12,7 +12,8 @@
   "dependencies": {
     "drizzle-orm": "^0.44.7",
     "hono": "^4.9.7",
-    "viem": "^2.37.5"
+    "viem": "^2.37.5",
+    "@elliquid/shared": "workspace:*"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20261005.0",
