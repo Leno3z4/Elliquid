@@ -29,6 +29,7 @@ export const liquidityRequests = sqliteTable("liquidity_requests", {
   projectId: text("project_id").notNull().references(() => projects.id),
   strategyId: text("strategy_id").notNull().references(() => strategies.id),
   targetQuote: text("target_quote").notNull(),
+  requestKey: text("request_key").notNull(),
   durationSeconds: integer("duration_seconds").notNull(),
   maxInventoryBps: integer("max_inventory_bps").notNull(),
   liquidityFeeBps: integer("liquidity_fee_bps").notNull(),
