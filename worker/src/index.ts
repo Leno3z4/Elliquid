@@ -5,6 +5,7 @@ import { desc, eq } from "drizzle-orm";
 import { liquidityRequests, projects, strategies, vaults } from "./db/schema";
 import type { Env } from "./env";
 import { evaluateStrategy } from "./strategy/engine";
+import { getElysiumClient } from "./chain/elysium";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -26,6 +27,24 @@ app.get("/", (c) =>
 );
 
 app.get("/api/health", (c) => c.json({ ok: true, service: "elliquid-api", ts: Date.now() }));
+
+app.get("/api/chain/status", async (c) => {
+  const client = getElysiumClient(c.env);
+  const [chainId, blockNumber] = await Promise.all([
+    client.getChainId(),
+    client.getBlockNumber(),
+  ]);
+
+  return c.json({
+    data: {
+      network: "Elysium Testnet",
+      expectedChainId: 99801,
+      chainId,
+      blockNumber: blockNumber.toString(),
+      rpcConfigured: Boolean(c.env.ELYSIUM_RPC_URL),
+    },
+  });
+});
 
 app.get("/api/strategies", async (c) => {
   const db = drizzle(c.env.DB);
