@@ -4,11 +4,14 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-05",
   "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "ELYSIUM_RPC_URL": "https://testnet-rpc.elysium.kinetiq.xyz"
+  },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "elliquid-db",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "database_id": "bc4ca6a9-9ba5-4283-bed2-3baff1bb13ea",
       "migrations_dir": "migrations"
     }
   ]
