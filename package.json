@@ -2,11 +2,20 @@
   "name": "elliquid",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "worker",
+    "packages/shared"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "dev:web": "next dev",
+    "build:web": "next build",
+    "dev:api": "npm --prefix worker run dev",
+    "check:api": "npm --prefix worker run check",
+    "deploy:api": "npm --prefix worker run deploy"
   },
   "dependencies": {
     "next": "^16.0.0",
