@@ -5,6 +5,7 @@ import { desc, eq } from "drizzle-orm";
 import { liquidityRequests, projects, strategies, vaults } from "./db/schema";
 import type { Env } from "./env";
 import { evaluateStrategy } from "./strategy/engine";
+import { authenticateSignedRequest, completeIdempotency, releaseIdempotency, reserveIdempotency } from "./security/auth";
 import { getElysiumClient } from "./chain/elysium";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -109,31 +110,55 @@ app.post("/api/liquidity-requests", async (c) => {
     liquidityFeeBps?: number;
   }>();
 
-  if (!body.projectId || !body.strategyId || !body.targetQuote) {
-    return c.json({ error: "projectId, strategyId and targetQuote are required" }, 400);
+  const auth = await authenticateSignedRequest(c, "create-liquidity-request", body);
+  if ("error" in auth) return auth.error;
+
+  const reservation = await reserveIdempotency(c, auth);
+  if (reservation.state === "completed") {
+    return new Response(reservation.body, {
+      status: reservation.status,
+      headers: { "Content-Type": "application/json", "X-Idempotent-Replay": "true" },
+    });
+  }
+  if (reservation.state === "processing") {
+    return c.json({ error: "Request with this Idempotency-Key is already processing" }, 409);
+  }
+  if (reservation.state === "conflict") {
+    return c.json({ error: "Idempotency-Key was already used for a different request" }, 409);
   }
 
-  if ((body.durationSeconds ?? 0) < 3600) {
-    return c.json({ error: "durationSeconds must be at least one hour" }, 400);
+  try {
+    if (!body.projectId || !body.strategyId || !body.targetQuote) {
+      return c.json({ error: "projectId, strategyId and targetQuote are required" }, 400);
+    }
+
+    if ((body.durationSeconds ?? 0) < 3600) {
+      return c.json({ error: "durationSeconds must be at least one hour" }, 400);
+    }
+
+    const db = drizzle(c.env.DB);
+    const id = crypto.randomUUID();
+    const createdAt = new Date();
+
+    await db.insert(liquidityRequests).values({
+      id,
+      projectId: body.projectId,
+      strategyId: body.strategyId,
+      targetQuote: body.targetQuote,
+      durationSeconds: body.durationSeconds ?? 86400,
+      maxInventoryBps: body.maxInventoryBps ?? 1000,
+      liquidityFeeBps: body.liquidityFeeBps ?? 300,
+      status: "open",
+      createdAt,
+    });
+
+    const response = { data: { id, status: "open" } };
+    await completeIdempotency(c, auth, 201, response);
+    return c.json(response, 201);
+  } catch (error) {
+    await releaseIdempotency(c, auth);
+    throw error;
   }
-
-  const db = drizzle(c.env.DB);
-  const id = crypto.randomUUID();
-  const createdAt = new Date();
-
-  await db.insert(liquidityRequests).values({
-    id,
-    projectId: body.projectId,
-    strategyId: body.strategyId,
-    targetQuote: body.targetQuote,
-    durationSeconds: body.durationSeconds ?? 86400,
-    maxInventoryBps: body.maxInventoryBps ?? 1000,
-    liquidityFeeBps: body.liquidityFeeBps ?? 300,
-    status: "open",
-    createdAt,
-  });
-
-  return c.json({ data: { id, status: "open" } }, 201);
 });
 
 export default app;
