@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/d1";
 import { desc, eq } from "drizzle-orm";
 import { liquidityRequests, projects, strategies, vaults } from "./db/schema";
 import type { Env } from "./env";
+import { evaluateStrategy } from "./strategy/engine";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -52,6 +53,31 @@ app.get("/api/vaults", async (c) => {
   const db = drizzle(c.env.DB);
   const rows = await db.select().from(vaults).orderBy(desc(vaults.createdAt));
   return c.json({ data: rows });
+});
+
+app.post("/api/strategy/evaluate", async (c) => {
+  const body = await c.req.json<{
+    policy?: {
+      targetInventoryBps: number;
+      maxInventoryBps: number;
+      maxDrawdownBps: number;
+      minLiquidityCoverageBps: number;
+    };
+    snapshot?: {
+      inventoryBps: number;
+      liquidityCoverageBps: number;
+      drawdownBps: number;
+      marketHealthy: boolean;
+      executionFresh: boolean;
+    };
+  }>();
+
+  if (!body.policy || !body.snapshot) {
+    return c.json({ error: "policy and snapshot are required" }, 400);
+  }
+
+  const decision = evaluateStrategy(body.policy, body.snapshot);
+  return c.json({ data: decision });
 });
 
 app.post("/api/liquidity-requests", async (c) => {
