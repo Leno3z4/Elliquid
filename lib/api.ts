@@ -11,7 +11,7 @@ export type ApiStrategy = {
 };
 
 function apiBaseUrl() {
-  const value = process.env.NEXT_PUBLIC_ELLiqUID_API_URL?.trim();
+  const value = process.env.NEXT_PUBLIC_ELLIQUID_API_URL?.trim();
   return value ? value.replace(/\/$/, "") : null;
 }
 
