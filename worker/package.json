@@ -13,7 +13,7 @@
     "drizzle-orm": "^0.44.7",
     "hono": "^4.13.7",
     "viem": "^2.37.5",
-    "@elliquid/shared": "workspace:*"
+    "@elliquid/shared": "file:../packages/shared"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261002.1",
