@@ -14,7 +14,7 @@ app.use("/api/*", async (c, next) => {
   const origins = c.env.API_ORIGIN ? c.env.API_ORIGIN.split(",").map((v) => v.trim()) : ["*"];
   return cors({
     origin: origins,
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: ["Content-Type", "Authorization", "X-Elliquid-Address", "X-Elliquid-Signature", "X-Elliquid-Timestamp", "Idempotency-Key"],
     allowMethods: ["GET", "POST", "OPTIONS"],
   })(c, next);
 });
@@ -113,6 +113,40 @@ app.post("/api/liquidity-requests", async (c) => {
   const auth = await authenticateSignedRequest(c, "create-liquidity-request", body);
   if ("error" in auth) return auth.error;
 
+  if (!body.projectId || !body.strategyId || !body.targetQuote) {
+    return c.json({ error: "projectId, strategyId and targetQuote are required" }, 400);
+  }
+
+  if (!/^\\d+$/.test(body.targetQuote) || body.targetQuote.length > 78) {
+    return c.json({ error: "targetQuote must be a positive integer amount in base units" }, 400);
+  }
+
+  if ((body.durationSeconds ?? 0) < 3600 || (body.durationSeconds ?? 0) > 30 * 24 * 3600) {
+    return c.json({ error: "durationSeconds must be between one hour and thirty days" }, 400);
+  }
+
+  if ((body.maxInventoryBps ?? 1000) < 0 || (body.maxInventoryBps ?? 1000) > 10000) {
+    return c.json({ error: "maxInventoryBps must be between 0 and 10000" }, 400);
+  }
+
+  if ((body.liquidityFeeBps ?? 300) < 0 || (body.liquidityFeeBps ?? 300) > 1000) {
+    return c.json({ error: "liquidityFeeBps must be between 0 and 1000" }, 400);
+  }
+
+  const db = drizzle(c.env.DB);
+  const projectRows = await db.select().from(projects).where(eq(projects.id, body.projectId)).limit(1);
+  const project = projectRows[0];
+  if (!project) return c.json({ error: "Project not found" }, 404);
+  if (project.wallet.toLowerCase() !== auth.wallet.toLowerCase()) {
+    return c.json({ error: "Signed wallet does not own this project" }, 403);
+  }
+
+  const strategyRows = await db.select().from(strategies).where(and(
+    eq(strategies.id, body.strategyId),
+    eq(strategies.active, true),
+  )).limit(1);
+  if (!strategyRows[0]) return c.json({ error: "Active strategy not found" }, 404);
+
   const reservation = await reserveIdempotency(c, auth);
   if (reservation.state === "completed") {
     return new Response(reservation.body, {
@@ -128,15 +162,6 @@ app.post("/api/liquidity-requests", async (c) => {
   }
 
   try {
-    if (!body.projectId || !body.strategyId || !body.targetQuote) {
-      return c.json({ error: "projectId, strategyId and targetQuote are required" }, 400);
-    }
-
-    if ((body.durationSeconds ?? 0) < 3600) {
-      return c.json({ error: "durationSeconds must be at least one hour" }, 400);
-    }
-
-    const db = drizzle(c.env.DB);
     const id = crypto.randomUUID();
     const createdAt = new Date();
 
