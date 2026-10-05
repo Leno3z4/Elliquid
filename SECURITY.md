@@ -5,8 +5,8 @@ This is a hackathon-stage system. The invariants below are treated as requiremen
 ## API
 
 - Write endpoints must authenticate a wallet-controlled signature.
-- Signed writes expire after a five-minute timestamp window.
-- Every signed write carries an Idempotency-Key.
+- Signed writes expire after a five-minute timestamp window; the database idempotency record is retained for 24 hours.
+- Every signed write carries an Idempotency-Key, and the signature commits to the request payload hash.
 - A wallet cannot reuse an idempotency key for a different payload or endpoint.
 - Replaying a completed request returns the original response instead of creating a second resource.
 - Project-side writes must match the signed wallet to the stored project owner.
