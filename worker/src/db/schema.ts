@@ -56,3 +56,15 @@ export const executionEvents = sqliteTable("execution_events", {
   payload: text("payload").notNull(),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
 });
+
+export const idempotencyKeys = sqliteTable("idempotency_keys", {
+  wallet: text("wallet").notNull(),
+  key: text("key").notNull(),
+  endpoint: text("endpoint").notNull(),
+  requestHash: text("request_hash").notNull(),
+  status: text("status", { enum: ["processing", "completed"] }).notNull().default("processing"),
+  responseStatus: integer("response_status"),
+  responseBody: text("response_body"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+});
