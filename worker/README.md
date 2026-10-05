@@ -14,7 +14,11 @@ Cloudflare Worker + Hono + D1 API for Elliquid.
 
     npx wrangler d1 migrations apply elliquid-db --remote
 
-4. Start the Worker:
+4. Apply the strategy seed migration:
+
+    npx wrangler d1 migrations apply elliquid-db --remote
+
+5. Start the Worker:
 
     npm run dev:api
 
@@ -26,12 +30,17 @@ The API exposes:
 - `GET /api/liquidity-requests`
 - `GET /api/vaults`
 - `POST /api/liquidity-requests`
+- `POST /api/strategy/evaluate`
 
 ## Database
 
 D1 stores application state and indexed execution history. On-chain contracts remain the authority for user funds, permissions and settlement.
 
 Do not put private keys in D1. The execution worker will use Cloudflare secrets for signing configuration when that layer is introduced.
+
+## Strategy engine
+
+`/api/strategy/evaluate` exposes the deterministic risk loop used by the future keeper. It deliberately returns a decision without executing capital movement. Execution adapters come only after the policy and permission boundaries are wired into contracts.
 
 ## Production TODO
 
