@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+interface IVaultAsset {
+    function asset() external view returns (address);
+}
+
 interface IERC20V2 {
     function balanceOf(address account) external view returns (uint256);
     function approve(address spender, uint256 value) external returns (bool);
@@ -92,6 +96,8 @@ contract V2SingleSidedLiquidityAdapter {
         require(block.timestamp <= p.deadline, "EXPIRED");
 
         address vault = msg.sender;
+        require(p.tokenIn == IVaultAsset(vault).asset(), "TOKEN_NOT_VAULT_ASSET");
+
         IERC20V2 input = IERC20V2(p.tokenIn);
         IERC20V2 output = IERC20V2(p.tokenOut);
 
@@ -136,6 +142,7 @@ contract V2SingleSidedLiquidityAdapter {
             vault,
             p.deadline
         );
+        require(liquidity > 0, "ZERO_LP");
 
         uint256 inputDust = input.balanceOf(address(this));
         if (inputDust > 0) require(input.transfer(vault, inputDust), "RETURN_INPUT");
