@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, BarChart3, ChevronRight, Database, LayoutDashboard, Plus, ShieldCheck, Sparkles, Wallet, X, Zap } from "lucide-react";
-import { ELYSIUM_TESTNET, shortAddress } from "@/lib/chain";
+import { ELYSIUM_TESTNET } from "@/lib/chain";
 import { fetchStrategies, isApiConfigured } from "@/lib/api";
+import { useAccount, useConnect, useSwitchChain } from "wagmi";
+import { elysiumTestnet } from "@/lib/wagmi";
 
 type Strategy = {
   name: string;
@@ -35,11 +37,13 @@ const activity = [
 
 export function ElliquidApp() {
   const [active, setActive] = useState("Overview");
-  const [wallet, setWallet] = useState<string | null>(null);
   const [modal, setModal] = useState<"deposit" | "request" | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [strategiesView, setStrategiesView] = useState<Strategy[]>(strategies);
   const [apiStatus, setApiStatus] = useState<"demo" | "loading" | "live" | "error">(isApiConfigured() ? "loading" : "demo");
+  const { address: wallet, isConnected } = useAccount();
+  const { connect, connectors, isPending } = useConnect();
+  const { switchChain } = useSwitchChain();
 
   useEffect(() => {
     if (!isApiConfigured()) return;
@@ -65,29 +69,25 @@ export function ElliquidApp() {
     ["Risk", ShieldCheck]
   ] as const, []);
 
-  async function connectWallet() {
-    const eth = (window as typeof window & {
-      ethereum?: { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> }
-    }).ethereum;
-
-    if (!eth) {
-      setToast("No injected wallet found. Install MetaMask or another EVM wallet.");
+  function connectWallet() {
+    const connector = connectors[0];
+    if (!connector) {
+      setToast("No injected EVM wallet connector is available.");
       return;
     }
 
-    try {
-      const accounts = await eth.request({ method: "eth_requestAccounts" }) as string[];
-      if (accounts[0]) setWallet(accounts[0]);
+    connect({
+      connector,
+      chainId: elysiumTestnet.id,
+    });
+  }
 
-      const chainHex = "0x" + ELYSIUM_TESTNET.chainId.toString(16);
-      try {
-        await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: chainHex }] });
-      } catch {
-        setToast("Wallet connected. Add Elysium testnet (chain 99801) if your wallet did not switch automatically.");
-      }
-    } catch {
-      setToast("Wallet connection was cancelled.");
+  function ensureElysium() {
+    if (isConnected) {
+      switchChain({ chainId: elysiumTestnet.id });
+      return;
     }
+    connectWallet();
   }
 
   function notify(message: string) {
@@ -125,7 +125,7 @@ export function ElliquidApp() {
           <div className="topbar-title">Programmable liquidity marketplace</div>
           <div className="top-actions">
             <div className="pill"><Zap size={12}/> {apiStatus === "live" ? "D1 live" : apiStatus === "loading" ? "API loading" : apiStatus === "error" ? "API offline" : "demo data"}</div>
-            <button className="wallet" onClick={connectWallet}>{wallet ? shortAddress(wallet) : "Connect wallet"}</button>
+            <button className="wallet" onClick={ensureElysium}>{isConnected && wallet ? wallet.slice(0, 6) + "…" + wallet.slice(-4) : isPending ? "Connecting…" : "Connect wallet"}</button>
           </div>
         </header>
 
