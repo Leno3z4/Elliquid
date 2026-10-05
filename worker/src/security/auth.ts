@@ -6,6 +6,7 @@ import { idempotencyKeys } from "../db/schema";
 import type { Env } from "../env";
 
 const AUTH_WINDOW_MS = 5 * 60 * 1000;
+const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
 
 export type SignedRequest = {
   wallet: `0x${string}`;
@@ -106,7 +107,7 @@ export async function reserveIdempotency(
 ) {
   const db = drizzle(c.env.DB);
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + AUTH_WINDOW_MS);
+  const expiresAt = new Date(now.getTime() + IDEMPOTENCY_TTL_MS);
 
   await db.delete(idempotencyKeys).where(and(
     eq(idempotencyKeys.wallet, request.wallet),
