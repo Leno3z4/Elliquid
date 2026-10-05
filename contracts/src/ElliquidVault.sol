@@ -12,13 +12,16 @@ interface IElliquidAdapter {
     function execute(bytes calldata data) external returns (bytes memory result);
 }
 
-/// @notice Hackathon MVP single-asset vault with an explicit adapter allowlist.
-/// @dev Not audited. Strategy execution is intentionally permissioned and adapter-driven.
+/// @notice Hackathon MVP single-asset vault with separated governance/execution roles.
+/// @dev Not audited. Keep deposits small on testnet until a full audit.
 contract ElliquidVault {
     string public name;
     string public symbol;
     IERC20 public immutable asset;
-    address public manager;
+
+    address public owner;
+    address public pendingOwner;
+    address public strategyExecutor;
 
     uint256 public totalShares;
     uint256 public totalManagedAssets;
@@ -27,6 +30,7 @@ contract ElliquidVault {
 
     mapping(address => uint256) public sharesOf;
     mapping(address => bool) public approvedAdapters;
+    mapping(bytes32 => bool) public actionKeyUsed;
 
     uint256 private _locked = 1;
 
@@ -37,27 +41,38 @@ contract ElliquidVault {
         _locked = 1;
     }
 
-    modifier onlyManager() {
-        require(msg.sender == manager, "MANAGER");
+    modifier onlyOwner() {
+        require(msg.sender == owner, "OWNER");
         _;
     }
 
-    constructor(IERC20 _asset, string memory _name, string memory _symbol, address _manager) {
+    modifier onlyExecutor() {
+        require(msg.sender == strategyExecutor, "EXECUTOR");
+        _;
+    }
+
+    constructor(IERC20 _asset, string memory _name, string memory _symbol, address _owner) {
         require(address(_asset) != address(0), "BAD_ASSET");
-        require(_manager != address(0), "BAD_MANAGER");
+        require(_owner != address(0), "BAD_OWNER");
         asset = _asset;
         name = _name;
         symbol = _symbol;
-        manager = _manager;
+        owner = _owner;
+        strategyExecutor = _owner;
+        emit OwnershipTransferred(address(0), _owner);
+        emit StrategyExecutorSet(_owner);
     }
 
     event Deposited(address indexed user, uint256 assets, uint256 shares);
     event Withdrawn(address indexed user, uint256 assets, uint256 shares);
-    event ManagerSet(address indexed manager);
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event OwnershipTransferStarted(address indexed currentOwner, address indexed pendingOwner);
+    event StrategyExecutorSet(address indexed executor);
     event AdapterApproval(address indexed adapter, bool approved);
     event StrategyAssetsReported(uint256 managedAssets);
     event DepositsPaused(bool paused);
-    event AdapterExecuted(address indexed adapter, uint256 assetsFunded);
+    event LossLimitSet(uint256 maxLossBps);
+    event AdapterExecuted(bytes32 indexed actionKey, address indexed adapter, uint256 assetsFunded);
 
     function previewDeposit(uint256 assets) public view returns (uint256) {
         if (totalShares == 0 || totalManagedAssets == 0) return assets;
@@ -98,32 +113,57 @@ contract ElliquidVault {
         emit Withdrawn(msg.sender, assets, shares);
     }
 
-    function setManager(address newManager) external onlyManager {
-        require(newManager != address(0), "BAD_MANAGER");
-        manager = newManager;
-        emit ManagerSet(newManager);
+    function startOwnershipTransfer(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "BAD_OWNER");
+        pendingOwner = newOwner;
+        emit OwnershipTransferStarted(owner, newOwner);
     }
 
-    function setDepositsPaused(bool paused) external onlyManager {
+    function acceptOwnership() external {
+        require(msg.sender == pendingOwner, "PENDING_OWNER");
+        address previous = owner;
+        owner = msg.sender;
+        pendingOwner = address(0);
+        emit OwnershipTransferred(previous, msg.sender);
+    }
+
+    function setStrategyExecutor(address newExecutor) external onlyOwner {
+        require(newExecutor != address(0), "BAD_EXECUTOR");
+        strategyExecutor = newExecutor;
+        emit StrategyExecutorSet(newExecutor);
+    }
+
+    function setDepositsPaused(bool paused) external onlyOwner {
         depositsPaused = paused;
         emit DepositsPaused(paused);
     }
 
-    function setAdapterAllowed(address adapter, bool allowed) external onlyManager {
+    function setMaxStrategyLossBps(uint256 maxLossBps) external onlyOwner {
+        require(maxLossBps <= 5000, "LOSS_LIMIT_TOO_HIGH");
+        maxStrategyLossBps = maxLossBps;
+        emit LossLimitSet(maxLossBps);
+    }
+
+    function setAdapterAllowed(address adapter, bool allowed) external onlyOwner {
         require(adapter != address(0), "BAD_ADAPTER");
         approvedAdapters[adapter] = allowed;
         emit AdapterApproval(adapter, allowed);
     }
 
-    /// @notice Funds one approved adapter with the vault asset and lets it execute a typed action.
-    /// @dev The adapter must return unused assets to this vault; strategy position accounting is reported separately.
+    /// @notice Funds one approved adapter with the vault asset and executes a typed action.
+    /// @dev Each actionKey is single-use, providing on-chain idempotency.
     function executeAdapter(
+        bytes32 actionKey,
         address adapter,
         uint256 assetsToFund,
         bytes calldata data
-    ) external onlyManager nonReentrant returns (bytes memory result) {
+    ) external onlyExecutor nonReentrant returns (bytes memory result) {
+        require(actionKey != bytes32(0), "BAD_ACTION_KEY");
+        require(!actionKeyUsed[actionKey], "ACTION_ALREADY_USED");
         require(approvedAdapters[adapter], "ADAPTER_NOT_APPROVED");
         require(assetsToFund <= asset.balanceOf(address(this)), "INSUFFICIENT_LIQUIDITY");
+
+        actionKeyUsed[actionKey] = true;
 
         if (assetsToFund > 0) {
             require(asset.approve(adapter, 0), "APPROVE_RESET");
@@ -132,13 +172,12 @@ contract ElliquidVault {
 
         result = IElliquidAdapter(adapter).execute(data);
 
-        // Never leave a spend allowance behind after an execution.
         require(asset.approve(adapter, 0), "APPROVE_CLEAR");
-        emit AdapterExecuted(adapter, assetsToFund);
+        emit AdapterExecuted(actionKey, adapter, assetsToFund);
     }
 
     /// @notice Reports the externally managed NAV used for share pricing.
-    /// @dev Only an approved adapter may report. Manager cannot arbitrarily inflate NAV.
+    /// @dev Only an approved adapter may report; an adapter cannot be used by an unapproved vault.
     function reportManagedAssets(uint256 managedAssets) external {
         require(approvedAdapters[msg.sender], "ADAPTER_NOT_APPROVED");
 
