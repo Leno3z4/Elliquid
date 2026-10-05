@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { drizzle } from "drizzle-orm/d1";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { liquidityRequests, projects, strategies, vaults } from "./db/schema";
 import type { Env } from "./env";
 import { evaluateStrategy } from "./strategy/engine";
