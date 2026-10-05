@@ -15,7 +15,9 @@
     "build:web": "next build",
     "dev:api": "npm --prefix worker run dev",
     "check:api": "npm --prefix worker run check",
-    "deploy:api": "npm --prefix worker run deploy"
+    "deploy:api": "npm --prefix worker run deploy",
+    "db:migrate": "cd worker && npx wrangler d1 migrations apply elliquid-db --remote",
+    "db:migrate:local": "cd worker && npx wrangler d1 migrations apply elliquid-db --local"
   },
   "dependencies": {
     "next": "^16.0.0",
