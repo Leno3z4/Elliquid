@@ -92,6 +92,16 @@ contract ElliquidVaultTest {
         require(vault.strategyExecutor() == executor, "EXECUTOR");
         require(vault.owner() == address(this), "OWNER");
     }
+
+    function testZeroNavCannotDiluteExistingShares() public {
+        vault.deposit(100 ether);
+
+        (bool ok,) = address(vault).call(
+            abi.encodeWithSelector(vault.reportManagedAssets.selector, 0)
+        );
+        require(!ok, "ZERO_NAV_ACCEPTED");
+        require(vault.totalManagedAssets() == 100 ether, "NAV_CHANGED");
+    }
 }
 
 contract LiquidityMarketplaceTest {
@@ -147,5 +157,11 @@ contract LiquidityMarketplaceTest {
             abi.encodeWithSelector(market.expireRequest.selector, id)
         );
         require(!ok, "EARLY_EXPIRY_ALLOWED");
+    }
+
+    function testOwnershipIsTwoStep() public {
+        address nextOwner = address(0x7777);
+        market.startOwnershipTransfer(nextOwner);
+        require(market.pendingOwner() == nextOwner, "PENDING");
     }
 }
