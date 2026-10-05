@@ -23,12 +23,14 @@ contract LiquidityMarketplace {
 
     uint256 public nextRequestId = 1;
     address public owner;
+    address public pendingOwner;
     address public operator;
 
     mapping(uint256 => Request) public requests;
     mapping(address => mapping(bytes32 => uint256)) public requestIdByKey;
 
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event OwnershipTransferStarted(address indexed currentOwner, address indexed pendingOwner);
     event OperatorSet(address indexed operator);
     event RequestCreated(uint256 indexed id, address indexed creator, bytes32 indexed requestKey, address baseToken, address quoteToken, uint256 targetQuote);
     event RequestFilled(uint256 indexed id, address indexed operator);
@@ -57,11 +59,18 @@ contract LiquidityMarketplace {
         emit OperatorSet(newOperator);
     }
 
-    function transferOwnership(address newOwner) external onlyOwner {
+    function startOwnershipTransfer(address newOwner) external onlyOwner {
         require(newOwner != address(0), "BAD_OWNER");
+        pendingOwner = newOwner;
+        emit OwnershipTransferStarted(owner, newOwner);
+    }
+
+    function acceptOwnership() external {
+        require(msg.sender == pendingOwner, "PENDING_OWNER");
         address previous = owner;
-        owner = newOwner;
-        emit OwnershipTransferred(previous, newOwner);
+        owner = msg.sender;
+        pendingOwner = address(0);
+        emit OwnershipTransferred(previous, msg.sender);
     }
 
     function createRequest(
