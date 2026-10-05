@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, BarChart3, ChevronRight, Database, LayoutDashboard, Plus, ShieldCheck, Sparkles, Wallet, X, Zap } from "lucide-react";
 import { ELYSIUM_TESTNET, shortAddress } from "@/lib/chain";
+import { fetchStrategies, isApiConfigured } from "@/lib/api";
 
 type Strategy = {
   name: string;
@@ -37,6 +38,25 @@ export function ElliquidApp() {
   const [wallet, setWallet] = useState<string | null>(null);
   const [modal, setModal] = useState<"deposit" | "request" | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [strategiesView, setStrategiesView] = useState<Strategy[]>(strategies);
+  const [apiStatus, setApiStatus] = useState<"demo" | "loading" | "live" | "error">(isApiConfigured() ? "loading" : "demo");
+
+  useEffect(() => {
+    if (!isApiConfigured()) return;
+    fetchStrategies()
+      .then((rows) => {
+        if (!rows) return;
+        setStrategiesView(rows.map((row) => ({
+          name: row.name,
+          desc: row.description,
+          apy: row.targetApy == null ? "—" : row.targetApy.toFixed(1) + "%",
+          tvl: "—",
+          risk: row.risk === "medium" ? "mid" : row.risk,
+        })));
+        setApiStatus("live");
+      })
+      .catch(() => setApiStatus("error"));
+  }, []);
 
   const nav = useMemo(() => [
     ["Overview", LayoutDashboard],
@@ -104,7 +124,7 @@ export function ElliquidApp() {
         <header className="topbar">
           <div className="topbar-title">Programmable liquidity marketplace</div>
           <div className="top-actions">
-            <div className="pill"><Zap size={12}/> execution-aware vaults</div>
+            <div className="pill"><Zap size={12}/> {apiStatus === "live" ? "D1 live" : apiStatus === "loading" ? "API loading" : apiStatus === "error" ? "API offline" : "demo data"}</div>
             <button className="wallet" onClick={connectWallet}>{wallet ? shortAddress(wallet) : "Connect wallet"}</button>
           </div>
         </header>
@@ -139,7 +159,7 @@ export function ElliquidApp() {
                 <ChevronRight size={15} color="#778390"/>
               </div>
               <div className="strategy-list">
-                {strategies.map((s) => (
+                {strategiesView.map((s) => (
                   <StrategyCard key={s.name} strategy={s} onOpen={() => notify(s.name + " selected — vault detail screen is next.")} />
                 ))}
               </div>
