@@ -75,7 +75,8 @@ contract ElliquidVault {
     event AdapterExecuted(bytes32 indexed actionKey, address indexed adapter, uint256 assetsFunded);
 
     function previewDeposit(uint256 assets) public view returns (uint256) {
-        if (totalShares == 0 || totalManagedAssets == 0) return assets;
+        if (totalShares == 0) return assets;
+        require(totalManagedAssets > 0, "ZERO_NAV");
         return assets * totalShares / totalManagedAssets;
     }
 
@@ -180,6 +181,10 @@ contract ElliquidVault {
     /// @dev Only an approved adapter may report; an adapter cannot be used by an unapproved vault.
     function reportManagedAssets(uint256 managedAssets) external {
         require(approvedAdapters[msg.sender], "ADAPTER_NOT_APPROVED");
+
+        if (totalShares > 0) {
+            require(managedAssets > 0, "ZERO_NAV");
+        }
 
         if (managedAssets < totalManagedAssets && totalManagedAssets > 0) {
             uint256 lossBps = (totalManagedAssets - managedAssets) * 10000 / totalManagedAssets;
