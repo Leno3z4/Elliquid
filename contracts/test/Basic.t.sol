@@ -46,6 +46,18 @@ contract MockAdapter {
     }
 }
 
+contract PauseGuardianActor {
+    function pause(ElliquidVault vault) external {
+        vault.guardianPauseStrategy();
+    }
+
+    function tryUnpause(ElliquidVault vault) external returns (bool ok) {
+        (ok,) = address(vault).call(
+            abi.encodeWithSelector(vault.setStrategyPaused.selector, false)
+        );
+    }
+}
+
 contract ElliquidVaultTest {
     MockERC20 token;
     ElliquidVault vault;
