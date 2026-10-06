@@ -12,7 +12,7 @@ const app = new Hono<{ Bindings: Env }>();
 
 app.use("/api/*", async (c, next) => {
   if (c.req.method !== "OPTIONS") {
-    const { success } = await c.env.PUBLIC_RATE_LIMITER.limit({ key: new URL(c.req.url).pathname });
+    const { success } = await c.env.PUBLIC_RATE_LIMITER.limit({ key: `${c.req.header('CF-Connecting-IP') ?? 'unknown'}:${new URL(c.req.url).pathname}` });
     if (!success) return c.json({ error: "Rate limit exceeded" }, 429);
   }
 
