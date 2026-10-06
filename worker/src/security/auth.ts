@@ -13,6 +13,7 @@ import {
 
 const AUTH_WINDOW_MS = 5 * 60 * 1000;
 const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
+const MAX_BODY_BYTES = 16 * 1024;
 
 export type SignedRequest = {
   wallet: `0x${string}`;
@@ -26,6 +27,11 @@ export async function authenticateSignedRequest(
   action: string,
   body: unknown,
 ): Promise<SignedRequest | { error: Response }> {
+  const contentLength = Number(c.req.header("Content-Length") ?? "0");
+  if (contentLength > MAX_BODY_BYTES) {
+    return { error: c.json({ error: "Request body too large" }, 413) };
+  }
+
   const wallet = c.req.header("X-Elliquid-Address")?.trim().toLowerCase();
   const signature = c.req.header("X-Elliquid-Signature")?.trim() as `0x${string}` | undefined;
   const timestamp = Number(c.req.header("X-Elliquid-Timestamp")?.trim());
@@ -37,7 +43,7 @@ export async function authenticateSignedRequest(
   if (!/^0x[0-9a-f]{40}$/.test(wallet) || !/^0x[0-9a-fA-F]{130}$/.test(signature)) {
     return { error: c.json({ error: "Invalid wallet or signature format" }, 400) };
   }
-  if (idempotencyKey.length < 16 || idempotencyKey.length > 128) {
+  if (idempotencyKey.length < 16 || idempotencyKey.length > 128 || !/^[A-Za-z0-9._:-]+$/.test(idempotencyKey)) {
     return { error: c.json({ error: "Invalid Idempotency-Key" }, 400) };
   }
   if (Math.abs(Date.now() - timestamp) > AUTH_WINDOW_MS) {
