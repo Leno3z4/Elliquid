@@ -182,9 +182,12 @@ async function submitRawContractCall(env: Env, args: {
   }
 }
 
-async function finalizeConfirmedIntent(env: Env, actionKeyValue: string) {
-  const intent = await getIntent(env, actionKeyValue);
-  if (!intent || intent.status !== "confirmed" || !intent.referenceId || !intent.txHash) return;
+async function finalizeConfirmedIntent(
+  env: Env,
+  intent: NonNullable<Awaited<ReturnType<typeof getIntent>>>,
+  receipt: Awaited<ReturnType<ReturnType<typeof getElysiumClient>["getTransactionReceipt"]>>,
+) {
+  if (intent.status !== "confirmed" || !intent.referenceId || !intent.txHash) return;
   const db = drizzle(env.DB);
 
   if (intent.action === "marketplace-create-request") {
@@ -192,7 +195,6 @@ async function finalizeConfirmedIntent(env: Env, actionKeyValue: string) {
       .where(eq(liquidityRequests.id, intent.referenceId)).limit(1);
     const request = rows[0];
     if (!request || request.onchainRequestId !== null) return;
-    const receipt = await getElysiumClient(env).getTransactionReceipt({ hash: intent.txHash as Hex });
     const logs = parseEventLogs({ abi: marketplaceAbi, eventName: "RequestCreated", logs: receipt.logs });
     const onchainId = logs[0]?.args.id;
     if (onchainId === undefined) throw new Error("REQUEST_CREATED_EVENT_MISSING");
@@ -219,15 +221,17 @@ async function finalizeConfirmedIntent(env: Env, actionKeyValue: string) {
 
 export async function reconcilePendingExecutions(env: Env) {
   const db = drizzle(env.DB);
+  const configuredBatch = Number(env.RECONCILE_BATCH_SIZE ?? 4);
+  const batchSize = Number.isInteger(configuredBatch) ? Math.min(Math.max(configuredBatch, 1), 4) : 4;
   const intents = await db.select().from(executionIntents)
     .where(inArray(executionIntents.status, ["prepared", "broadcast"]))
-    .limit(50);
+    .limit(batchSize);
 
   const results = [];
   for (const intent of intents) {
     if (!intent.txHash) continue;
     const result = await tryReconcile(env, intent.actionKey);
-    if (result.state === "confirmed") await finalizeConfirmedIntent(env, intent.actionKey);
+    if (result.state === "confirmed" && result.receipt) await finalizeConfirmedIntent(env, result.intent, result.receipt);
     results.push({ actionKey: intent.actionKey, state: result.state, txHash: intent.txHash });
   }
   return results;
@@ -238,7 +242,7 @@ export async function reconcileExecution(env: Env, actionKeyValue: string) {
     throw new Error("INVALID_ACTION_KEY");
   }
   const result = await tryReconcile(env, actionKeyValue);
-  if (result.state === "confirmed") await finalizeConfirmedIntent(env, actionKeyValue);
+  if (result.state === "confirmed" && result.receipt) await finalizeConfirmedIntent(env, result.intent, result.receipt);
   return result;
 }
 
@@ -541,7 +545,6 @@ export async function executeVaultAdapter(
     action: "vault-adapter-execute",
     vaultId: vault.id,
     referenceId: request.id,
-    vaultId: vault.id,
     to: vaultAddress,
     data,
   });
