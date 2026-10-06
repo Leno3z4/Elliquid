@@ -250,7 +250,8 @@ contract LiquidityMarketplaceTest {
 
     function setUp() public {
         market = new LiquidityMarketplace(address(this));
-        market.setOperator(address(this));
+        market.startOperatorUpdate(address(this));
+        market.acceptOperatorUpdate();
     }
 
     function testRequestKeyPreventsDuplicate() public {
