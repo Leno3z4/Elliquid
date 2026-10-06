@@ -37,7 +37,7 @@ export async function claimExecution(
 
   const row = rows[0];
   if (!row) return { state: "missing" as const };
-  if (row.action !== args.action || row.vaultId !== (args.vaultId ?? null)) {
+  if (row.action !== args.action || row.vaultId !== (args.vaultId ?? null) || row.referenceId !== (args.referenceId ?? null)) {
     return { state: "conflict" as const };
   }
 
