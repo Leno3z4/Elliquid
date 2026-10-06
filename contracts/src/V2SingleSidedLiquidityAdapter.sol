@@ -39,6 +39,7 @@ interface IV2Router {
 contract V2SingleSidedLiquidityAdapter {
     address public immutable router;
     address public owner;
+    address public pendingOwner;
     mapping(address => bool) public allowedVaults;
 
     event VaultApproval(address indexed vault, bool approved);
@@ -51,6 +52,7 @@ contract V2SingleSidedLiquidityAdapter {
         uint256 liquidity
     );
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event OwnershipTransferStarted(address indexed currentOwner, address indexed pendingOwner);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "OWNER");
@@ -70,11 +72,18 @@ contract V2SingleSidedLiquidityAdapter {
         emit VaultApproval(vault, allowed);
     }
 
-    function transferOwnership(address newOwner) external onlyOwner {
+    function startOwnershipTransfer(address newOwner) external onlyOwner {
         require(newOwner != address(0), "BAD_OWNER");
+        pendingOwner = newOwner;
+        emit OwnershipTransferStarted(owner, newOwner);
+    }
+
+    function acceptOwnership() external {
+        require(msg.sender == pendingOwner, "PENDING_OWNER");
         address previous = owner;
-        owner = newOwner;
-        emit OwnershipTransferred(previous, newOwner);
+        owner = msg.sender;
+        pendingOwner = address(0);
+        emit OwnershipTransferred(previous, msg.sender);
     }
 
     struct SingleSidedParams {
