@@ -22,7 +22,9 @@ contract ElliquidVault {
     address public owner;
     address public pendingOwner;
     address public strategyExecutor;
+    address public pendingStrategyExecutor;
     address public pauseGuardian;
+    address public pendingPauseGuardian;
 
     uint256 public totalShares;
     uint256 public totalManagedAssets;
@@ -78,7 +80,9 @@ contract ElliquidVault {
     event Withdrawn(address indexed user, uint256 assets, uint256 shares);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event OwnershipTransferStarted(address indexed currentOwner, address indexed pendingOwner);
+    event StrategyExecutorUpdateStarted(address indexed currentExecutor, address indexed pendingExecutor);
     event StrategyExecutorSet(address indexed executor);
+    event PauseGuardianUpdateStarted(address indexed currentGuardian, address indexed pendingGuardian);
     event PauseGuardianSet(address indexed guardian);
     event StrategyPaused(bool paused);
     event AdapterApproval(address indexed adapter, bool approved);
@@ -142,10 +146,17 @@ contract ElliquidVault {
         emit OwnershipTransferred(previous, msg.sender);
     }
 
-    function setPauseGuardian(address newGuardian) external onlyOwner {
+    function startPauseGuardianUpdate(address newGuardian) external onlyOwner {
         require(newGuardian != address(0), "BAD_GUARDIAN");
-        pauseGuardian = newGuardian;
-        emit PauseGuardianSet(newGuardian);
+        pendingPauseGuardian = newGuardian;
+        emit PauseGuardianUpdateStarted(pauseGuardian, newGuardian);
+    }
+
+    function acceptPauseGuardianUpdate() external onlyOwner {
+        require(pendingPauseGuardian != address(0), "NO_PENDING_GUARDIAN");
+        pauseGuardian = pendingPauseGuardian;
+        pendingPauseGuardian = address(0);
+        emit PauseGuardianSet(pauseGuardian);
     }
 
     function guardianPauseStrategy() external onlyPauseGuardian {
@@ -158,10 +169,17 @@ contract ElliquidVault {
         emit StrategyPaused(paused);
     }
 
-    function setStrategyExecutor(address newExecutor) external onlyOwner {
+    function startStrategyExecutorUpdate(address newExecutor) external onlyOwner {
         require(newExecutor != address(0), "BAD_EXECUTOR");
-        strategyExecutor = newExecutor;
-        emit StrategyExecutorSet(newExecutor);
+        pendingStrategyExecutor = newExecutor;
+        emit StrategyExecutorUpdateStarted(strategyExecutor, newExecutor);
+    }
+
+    function acceptStrategyExecutorUpdate() external onlyOwner {
+        require(pendingStrategyExecutor != address(0), "NO_PENDING_EXECUTOR");
+        strategyExecutor = pendingStrategyExecutor;
+        pendingStrategyExecutor = address(0);
+        emit StrategyExecutorSet(strategyExecutor);
     }
 
     function setDepositsPaused(bool paused) external onlyOwner {
