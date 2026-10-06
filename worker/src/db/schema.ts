@@ -35,6 +35,8 @@ export const liquidityRequests = sqliteTable("liquidity_requests", {
   liquidityFeeBps: integer("liquidity_fee_bps").notNull(),
   status: text("status", { enum: ["open", "filled", "cancelled", "expired"] }).notNull().default("open"),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  onchainRequestId: integer("onchain_request_id"),
+  lastTxHash: text("last_tx_hash"),
 });
 
 export const vaults = sqliteTable("vaults", {
@@ -44,6 +46,8 @@ export const vaults = sqliteTable("vaults", {
   assetSymbol: text("asset_symbol").notNull(),
   chainId: integer("chain_id").notNull(),
   contractAddress: text("contract_address"),
+  assetAddress: text("asset_address"),
+  adapterAddress: text("adapter_address"),
   tvl: text("tvl").notNull().default("0"),
   active: integer("active", { mode: "boolean" }).notNull().default(false),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
@@ -78,6 +82,8 @@ export const executionIntents = sqliteTable("execution_intents", {
     enum: ["prepared", "broadcast", "confirmed", "failed_before_broadcast", "failed_after_broadcast"],
   }).notNull().default("prepared"),
   txHash: text("tx_hash"),
+  fromAddress: text("from_address"),
+  nonce: integer("nonce"),
   error: text("error"),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
