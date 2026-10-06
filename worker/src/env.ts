@@ -3,4 +3,6 @@ export interface Env {
   API_ORIGIN?: string;
   ENVIRONMENT?: string;
   ELYSIUM_RPC_URL?: string;
+  PUBLIC_RATE_LIMITER: RateLimit;
+  WRITE_RATE_LIMITER: RateLimit;
 }
