@@ -105,6 +105,33 @@ The following remain safety boundaries:
 
 Changing configuration must never be treated as equivalent to changing the security model.
 
+## Mutable vs permanent configuration
+
+The design intentionally separates values that may legitimately change from accounting/security invariants.
+
+| Value | Policy |
+|---|---|
+| Vault ERC-20 asset | **Permanent per vault** — changing it would invalidate share accounting and existing positions. Create another vault for another asset. |
+| Vault name / symbol | Identity metadata; changing is unnecessary for the MVP. |
+| Vault owner | Mutable via two-step ownership transfer. |
+| Strategy executor | Mutable by the vault owner. |
+| Pause guardian | Mutable by the vault owner. |
+| Deposits / strategy pause | Mutable emergency controls. |
+| Approved adapters | Mutable allowlist. |
+| Strategy loss limit | Mutable, hard-capped. |
+| Adapter funding cap | Mutable, hard-capped. |
+| Marketplace operator | Mutable by marketplace owner. |
+| Marketplace economic limits | Mutable, hard-capped. |
+| Strategy adapter + risk envelope | Mutable by registry owner, within hard ceilings. |
+| Registered project status/metadata | Mutable by registry owner. |
+| Fee treasury | Mutable by fee-controller owner. |
+| Fee rates | Mutable, hard-capped. |
+| Fee callers | Mutable allowlist. |
+| V2 adapter AMM router | **Mutable through two-step router rotation**; router must be a deployed contract. |
+| Safety ceilings / protocol constants | Permanent in code unless a future audited contract version intentionally changes them. |
+
+The goal is that a changed venue, keeper, guardian, treasury, strategy policy or marketplace configuration does not require redeploying the whole protocol. The exceptions are deliberate safety invariants, especially the vault asset.
+
 ## Worker secrets
 
 Do not place the executor private key in D1, GitHub, .dev.vars.example, or source code.
