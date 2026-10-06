@@ -22,6 +22,7 @@ contract ElliquidVault {
     address public owner;
     address public pendingOwner;
     address public strategyExecutor;
+    address public pauseGuardian;
 
     uint256 public totalShares;
     uint256 public totalManagedAssets;
@@ -29,6 +30,7 @@ contract ElliquidVault {
     // Per-call funding cap: owner can tune it, but never above 50%.
     uint256 public maxAdapterFundingBps = 2500;
     bool public depositsPaused;
+    bool public strategyPaused;
 
     mapping(address => uint256) public sharesOf;
     mapping(address => bool) public approvedAdapters;
@@ -50,6 +52,12 @@ contract ElliquidVault {
 
     modifier onlyExecutor() {
         require(msg.sender == strategyExecutor, "EXECUTOR");
+        require(!strategyPaused, "STRATEGY_PAUSED");
+        _;
+    }
+
+    modifier onlyPauseGuardian() {
+        require(msg.sender == pauseGuardian, "PAUSE_GUARDIAN");
         _;
     }
 
@@ -70,6 +78,8 @@ contract ElliquidVault {
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event OwnershipTransferStarted(address indexed currentOwner, address indexed pendingOwner);
     event StrategyExecutorSet(address indexed executor);
+    event PauseGuardianSet(address indexed guardian);
+    event StrategyPaused(bool paused);
     event AdapterApproval(address indexed adapter, bool approved);
     event StrategyAssetsReported(uint256 managedAssets);
     event DepositsPaused(bool paused);
@@ -94,7 +104,7 @@ contract ElliquidVault {
 
         shares = previewDeposit(assets);
         require(shares > 0, "ZERO_SHARES");
-        require(asset.transferFrom(msg.sender, address(this), assets), "TRANSFER_IN");
+        _safeTransferFrom(asset, msg.sender, address(this), assets);
 
         sharesOf[msg.sender] += shares;
         totalShares += shares;
@@ -113,7 +123,7 @@ contract ElliquidVault {
         totalShares -= shares;
         totalManagedAssets -= assets;
 
-        require(asset.transfer(msg.sender, assets), "TRANSFER_OUT");
+        _safeTransfer(asset, msg.sender, assets);
         emit Withdrawn(msg.sender, assets, shares);
     }
 
@@ -129,6 +139,22 @@ contract ElliquidVault {
         owner = msg.sender;
         pendingOwner = address(0);
         emit OwnershipTransferred(previous, msg.sender);
+    }
+
+    function setPauseGuardian(address newGuardian) external onlyOwner {
+        require(newGuardian != address(0), "BAD_GUARDIAN");
+        pauseGuardian = newGuardian;
+        emit PauseGuardianSet(newGuardian);
+    }
+
+    function guardianPauseStrategy() external onlyPauseGuardian {
+        strategyPaused = true;
+        emit StrategyPaused(true);
+    }
+
+    function setStrategyPaused(bool paused) external onlyOwner {
+        strategyPaused = paused;
+        emit StrategyPaused(paused);
     }
 
     function setStrategyExecutor(address newExecutor) external onlyOwner {
@@ -178,14 +204,35 @@ contract ElliquidVault {
         actionKeyUsed[actionKey] = true;
 
         if (assetsToFund > 0) {
-            require(asset.approve(adapter, 0), "APPROVE_RESET");
-            require(asset.approve(adapter, assetsToFund), "APPROVE");
+            _safeApprove(asset, adapter, 0);
+            _safeApprove(asset, adapter, assetsToFund);
         }
 
         result = IElliquidAdapter(adapter).execute(data);
 
-        require(asset.approve(adapter, 0), "APPROVE_CLEAR");
+        _safeApprove(asset, adapter, 0);
         emit AdapterExecuted(actionKey, adapter, assetsToFund);
+    }
+
+
+    function _safeTransfer(IERC20 token, address to, uint256 amount) internal {
+        (bool ok, bytes memory returndata) =
+            address(token).call(abi.encodeWithSelector(IERC20.transfer.selector, to, amount));
+        require(ok && (returndata.length == 0 || abi.decode(returndata, (bool))), "TRANSFER_OUT");
+    }
+
+    function _safeTransferFrom(IERC20 token, address from, address to, uint256 amount) internal {
+        (bool ok, bytes memory returndata) = address(token).call(
+            abi.encodeWithSelector(IERC20.transferFrom.selector, from, to, amount)
+        );
+        require(ok && (returndata.length == 0 || abi.decode(returndata, (bool))), "TRANSFER_IN");
+    }
+
+    function _safeApprove(IERC20 token, address spender, uint256 amount) internal {
+        (bool ok, bytes memory returndata) = address(token).call(
+            abi.encodeWithSelector(IERC20.approve.selector, spender, amount)
+        );
+        require(ok && (returndata.length == 0 || abi.decode(returndata, (bool))), "APPROVE");
     }
 
     /// @notice Reports the externally managed NAV used for share pricing.
