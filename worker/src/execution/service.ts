@@ -242,7 +242,7 @@ export async function createOnchainRequest(env: Env, requestId: string) {
   const executionKey = actionKey("marketplace-create:" + request.id);
   const result = await submitRawContractCall(env, {
     actionKey: executionKey,
-    action: executionKey,
+    action: "marketplace-create-request",
     to: marketplace,
     data,
   });
@@ -315,7 +315,7 @@ export async function fillOnchainRequest(
 
   const result = await submitRawContractCall(env, {
     actionKey: executionKey,
-    action: executionKey,
+    action: "marketplace-fill-request",
     to: marketplace,
     data,
   });
@@ -440,7 +440,7 @@ export async function executeVaultAdapter(
 
   const result = await submitRawContractCall(env, {
     actionKey: executionKey,
-    action: executionKey,
+    action: "vault-adapter-execute",
     vaultId: vault.id,
     to: vaultAddress,
     data,
