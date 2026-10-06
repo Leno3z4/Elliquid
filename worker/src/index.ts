@@ -12,7 +12,10 @@ import type { Hex } from "viem";
 
 const app = new Hono<{ Bindings: Env }>();
 
-async function reserveWriteOrReplay(c: Parameters<typeof app.get>[1] extends never ? never : any, auth: Awaited<ReturnType<typeof authenticateSignedRequest>> & { wallet: `0x${string}` }) {
+async function reserveWriteOrReplay(
+  c: Parameters<typeof reserveIdempotency>[0],
+  auth: Parameters<typeof reserveIdempotency>[1],
+) {
   const reservation = await reserveIdempotency(c, auth);
   if (reservation.state === "completed") {
     return new Response(reservation.body, {
