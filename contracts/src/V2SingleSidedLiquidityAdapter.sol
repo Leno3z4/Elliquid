@@ -34,10 +34,11 @@ interface IV2Router {
 }
 
 /// @notice Converts one vault asset into a two-sided position through a V2-compatible AMM router.
-/// @dev The router is immutable and venue-specific. Do not pass the Elysium bridge router here:
+/// @dev The router is owner-configurable through a two-step update. Do not pass the Elysium bridge router here:
 ///      bridge routers are not AMM swap/liquidity routers. Vaults explicitly allowlist this adapter.
 contract V2SingleSidedLiquidityAdapter {
-    address public immutable router;
+    address public router;
+    address public pendingRouter;
     address public owner;
     address public pendingOwner;
     mapping(address => bool) public allowedVaults;
@@ -53,6 +54,8 @@ contract V2SingleSidedLiquidityAdapter {
     );
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event OwnershipTransferStarted(address indexed currentOwner, address indexed pendingOwner);
+    event RouterUpdateStarted(address indexed currentRouter, address indexed pendingRouter);
+    event RouterUpdated(address indexed previousRouter, address indexed newRouter);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "OWNER");
@@ -61,9 +64,25 @@ contract V2SingleSidedLiquidityAdapter {
 
     constructor(address _router, address _owner) {
         require(_router != address(0) && _owner != address(0), "BAD_INIT");
+        require(_router.code.length > 0, "ROUTER_NOT_CONTRACT");
         router = _router;
         owner = _owner;
         emit OwnershipTransferred(address(0), _owner);
+    }
+
+    function startRouterUpdate(address newRouter) external onlyOwner {
+        require(newRouter != address(0), "BAD_ROUTER");
+        require(newRouter.code.length > 0, "ROUTER_NOT_CONTRACT");
+        pendingRouter = newRouter;
+        emit RouterUpdateStarted(router, newRouter);
+    }
+
+    function acceptRouterUpdate() external onlyOwner {
+        require(pendingRouter != address(0), "NO_PENDING_ROUTER");
+        address previous = router;
+        router = pendingRouter;
+        pendingRouter = address(0);
+        emit RouterUpdated(previous, router);
     }
 
     function setVaultAllowed(address vault, bool allowed) external onlyOwner {
