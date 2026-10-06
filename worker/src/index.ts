@@ -384,7 +384,14 @@ app.post("/api/liquidity-requests", async (c) => {
   }
 });
 
-export default app;
+const handler = {
+  fetch: app.fetch,
+  async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext) {
+    await reconcilePendingExecutions(env);
+  },
+};
+
+export default handler;
 
 
 app.onError((error, c) => {
