@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {ElliquidVault} from "../src/ElliquidVault.sol";
 import {LiquidityMarketplace} from "../src/LiquidityMarketplace.sol";
 
-contract MockERC20 {
+contract MockERC20 is IERC20 {
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
 
