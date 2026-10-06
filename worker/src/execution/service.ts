@@ -8,6 +8,7 @@ import {
   stringToHex,
   type Address,
   type Hex,
+  type TransactionReceipt,
 } from "viem";
 import { liquidityRequests, projects, vaults, executionIntents } from "../db/schema";
 import type { Env } from "../env";
@@ -185,7 +186,7 @@ async function submitRawContractCall(env: Env, args: {
 async function finalizeConfirmedIntent(
   env: Env,
   intent: NonNullable<Awaited<ReturnType<typeof getIntent>>>,
-  receipt: Awaited<ReturnType<ReturnType<typeof getElysiumClient>["getTransactionReceipt"]>>,
+  receipt: TransactionReceipt,
 ) {
   if (intent.status !== "confirmed" || !intent.referenceId || !intent.txHash) return;
   const db = drizzle(env.DB);
