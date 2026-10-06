@@ -26,6 +26,8 @@ contract ElliquidVault {
     uint256 public totalShares;
     uint256 public totalManagedAssets;
     uint256 public maxStrategyLossBps = 1500;
+    // Per-call funding cap: owner can tune it, but never above 50%.
+    uint256 public maxAdapterFundingBps = 2500;
     bool public depositsPaused;
 
     mapping(address => uint256) public sharesOf;
@@ -72,6 +74,7 @@ contract ElliquidVault {
     event StrategyAssetsReported(uint256 managedAssets);
     event DepositsPaused(bool paused);
     event LossLimitSet(uint256 maxLossBps);
+    event AdapterFundingLimitSet(uint256 maxFundingBps);
     event AdapterExecuted(bytes32 indexed actionKey, address indexed adapter, uint256 assetsFunded);
 
     function previewDeposit(uint256 assets) public view returns (uint256) {
@@ -145,6 +148,12 @@ contract ElliquidVault {
         emit LossLimitSet(maxLossBps);
     }
 
+    function setMaxAdapterFundingBps(uint256 maxFundingBps) external onlyOwner {
+        require(maxFundingBps <= 5000, "FUNDING_LIMIT_TOO_HIGH");
+        maxAdapterFundingBps = maxFundingBps;
+        emit AdapterFundingLimitSet(maxFundingBps);
+    }
+
     function setAdapterAllowed(address adapter, bool allowed) external onlyOwner {
         require(adapter != address(0), "BAD_ADAPTER");
         approvedAdapters[adapter] = allowed;
@@ -162,7 +171,9 @@ contract ElliquidVault {
         require(actionKey != bytes32(0), "BAD_ACTION_KEY");
         require(!actionKeyUsed[actionKey], "ACTION_ALREADY_USED");
         require(approvedAdapters[adapter], "ADAPTER_NOT_APPROVED");
-        require(assetsToFund <= asset.balanceOf(address(this)), "INSUFFICIENT_LIQUIDITY");
+        uint256 idleAssets = asset.balanceOf(address(this));
+        require(assetsToFund <= idleAssets, "INSUFFICIENT_LIQUIDITY");
+        require(assetsToFund <= (idleAssets * maxAdapterFundingBps) / 10000, "ADAPTER_FUND_LIMIT");
 
         actionKeyUsed[actionKey] = true;
 
