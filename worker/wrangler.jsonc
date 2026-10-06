@@ -41,5 +41,8 @@
   ],
   "limits": {
     "subrequests": 40
+  },
+  "triggers": {
+    "crons": ["*/1 * * * *"]
   }
 }
