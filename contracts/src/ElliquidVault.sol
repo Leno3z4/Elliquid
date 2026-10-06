@@ -61,9 +61,10 @@ contract ElliquidVault {
         _;
     }
 
-    constructor(IERC20 _asset, string memory _name, string memory _symbol, address _owner) {
+    constructor(IERC20 _asset, string memory _name, string memory _symbol, address _owner, address _strategyExecutor) {
         require(address(_asset) != address(0), "BAD_ASSET");
         require(_owner != address(0), "BAD_OWNER");
+        require(_strategyExecutor != address(0), "BAD_EXECUTOR");
         asset = _asset;
         name = _name;
         symbol = _symbol;
