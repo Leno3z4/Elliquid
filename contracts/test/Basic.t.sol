@@ -65,7 +65,7 @@ contract ElliquidVaultTest {
 
     function setUp() public {
         token = new MockERC20();
-        vault = new ElliquidVault(token, "Elliquid USD", "elUSD", address(this));
+        vault = new ElliquidVault(token, "Elliquid USD", "elUSD", address(this), address(this));
         adapter = new MockAdapter();
         token.mint(address(this), 1000 ether);
         token.approve(address(vault), type(uint256).max);
