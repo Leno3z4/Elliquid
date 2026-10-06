@@ -17,6 +17,7 @@ contract FeeController {
     address public owner;
     address public pendingOwner;
     address public treasury;
+    address public pendingTreasury;
 
     uint16 public performanceFeeBps;
     uint16 public managementFeeBps;
@@ -26,6 +27,7 @@ contract FeeController {
 
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event OwnershipTransferStarted(address indexed currentOwner, address indexed pendingOwner);
+    event TreasuryUpdateStarted(address indexed currentTreasury, address indexed pendingTreasury);
     event TreasurySet(address indexed treasury);
     event FeeRatesSet(uint16 performanceFeeBps, uint16 managementFeeBps, uint16 projectFeeBps);
     event FeeCallerSet(address indexed caller, bool allowed);
@@ -64,10 +66,17 @@ contract FeeController {
         emit OwnershipTransferred(previous, msg.sender);
     }
 
-    function setTreasury(address newTreasury) external onlyOwner {
+    function startTreasuryUpdate(address newTreasury) external onlyOwner {
         require(newTreasury != address(0), "BAD_TREASURY");
-        treasury = newTreasury;
-        emit TreasurySet(newTreasury);
+        pendingTreasury = newTreasury;
+        emit TreasuryUpdateStarted(treasury, newTreasury);
+    }
+
+    function acceptTreasuryUpdate() external onlyOwner {
+        require(pendingTreasury != address(0), "NO_PENDING_TREASURY");
+        treasury = pendingTreasury;
+        pendingTreasury = address(0);
+        emit TreasurySet(treasury);
     }
 
     function setFeeRates(
