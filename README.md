@@ -78,8 +78,9 @@ The execution engine will be introduced inside the Worker runtime as a separate 
 - [x] D1 schema + initial migration
 - [ ] seed strategy / project registry
 - [ ] authenticated write endpoints
-- [ ] Elysium AMM adapter
-- [ ] real wallet transaction flow
+- [x] Elysium chain client + role-checked execution boundary
+- [ ] Elysium-compatible AMM adapter (venue-specific; bridge router is not an AMM)
+- [x] real wallet transaction execution/reconciliation service (testnet-ready; deployment still required)
 - [ ] chain event indexer
 - [ ] strategy / allocation engine
 - [ ] rebalance keeper
@@ -92,3 +93,17 @@ The execution engine will be introduced inside the Worker runtime as a separate 
 Elliquid is a capital coordination and execution layer — not a promise of yield.
 
 The current UI contains clearly labelled demo/model figures. They must not be presented as real performance. Mainnet deposits require audited contracts, isolated strategy permissions, explicit loss handling, withdrawal controls, transaction idempotency and operational monitoring.
+
+
+## Deployment configuration
+
+Core contracts intentionally do not embed Elysium token, router, or owner addresses. Use constructor parameters / deployment environment variables instead. The V2 liquidity adapter takes an immutable, venue-specific V2-compatible AMM router; the Elysium bridge router is not an acceptable value because it is a bridge gateway, not an AMM interface.
+
+For Worker execution, configure `MARKETPLACE_ADDRESS`, `EXECUTOR_ADDRESS`, and the `EXECUTOR_PRIVATE_KEY` secret in Cloudflare. Keep the executor wallet dedicated to Elliquid so nonce reservation and transaction recovery cannot collide with unrelated transactions.
+
+The current Elysium testnet defaults are chain ID 99801, RPC `https://testnet-rpc.elysium.kinetiq.xyz`, and native gas HYPE. Mainnet contract addresses are not embedded because the official docs currently mark them as coming at launch.
+
+Execution lifecycle:
+`authenticated request -> D1 execution intent -> nonce/hash reservation -> RPC preflight -> sign -> broadcast -> receipt reconciliation -> state transition`.
+
+An uncertain broadcast is left recoverable under the same action key/nonce; the service does not automatically submit a second transaction while the original status is unknown.
