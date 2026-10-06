@@ -103,7 +103,8 @@ contract ElliquidVaultTest {
 
     function testGuardianCanPauseStrategyButCannotUnpause() public {
         PauseGuardianActor guardian = new PauseGuardianActor();
-        vault.setPauseGuardian(address(guardian));
+        vault.startPauseGuardianUpdate(address(guardian));
+        vault.acceptPauseGuardianUpdate();
         guardian.pause(vault);
 
         (bool execOk,) = address(vault).call(
@@ -123,7 +124,8 @@ contract ElliquidVaultTest {
 
     function testOwnerAndExecutorAreSeparateConcepts() public {
         address executor = address(0x1234);
-        vault.setStrategyExecutor(executor);
+        vault.startStrategyExecutorUpdate(executor);
+        vault.acceptStrategyExecutorUpdate();
         require(vault.strategyExecutor() == executor, "EXECUTOR");
         require(vault.owner() == address(this), "OWNER");
     }
