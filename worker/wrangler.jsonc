@@ -3,7 +3,9 @@
   "name": "elliquid-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-05",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "vars": {
     "ELYSIUM_RPC_URL": "https://testnet-rpc.elysium.kinetiq.xyz"
   },
@@ -14,5 +16,26 @@
       "database_id": "bc4ca6a9-9ba5-4283-bed2-3baff1bb13ea",
       "migrations_dir": "migrations"
     }
-  ]
+  ],
+  "ratelimits": [
+    {
+      "name": "PUBLIC_RATE_LIMITER",
+      "namespace_id": "91001",
+      "simple": {
+        "limit": 300,
+        "period": 60
+      }
+    },
+    {
+      "name": "WRITE_RATE_LIMITER",
+      "namespace_id": "91002",
+      "simple": {
+        "limit": 30,
+        "period": 60
+      }
+    }
+  ],
+  "limits": {
+    "subrequests": 40
+  }
 }
