@@ -12,6 +12,30 @@ import type { Hex } from "viem";
 
 const app = new Hono<{ Bindings: Env }>();
 
+async function reserveWriteOrReplay(c: Parameters<typeof app.get>[1] extends never ? never : any, auth: Awaited<ReturnType<typeof authenticateSignedRequest>> & { wallet: `0x${string}` }) {
+  const reservation = await reserveIdempotency(c, auth);
+  if (reservation.state === "completed") {
+    return new Response(reservation.body, {
+      status: reservation.status,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Idempotent-Replay": "true",
+      },
+    });
+  }
+  if (reservation.state === "processing") {
+    return c.json({
+      error: "Request with this Idempotency-Key is already processing",
+    }, 409);
+  }
+  if (reservation.state === "conflict") {
+    return c.json({
+      error: "Idempotency-Key was already used for a different request",
+    }, 409);
+  }
+  return null;
+}
+
 app.use("/api/*", async (c, next) => {
   if (c.req.method !== "OPTIONS") {
     const { success } = await c.env.PUBLIC_RATE_LIMITER.limit({ key: `${c.req.header('CF-Connecting-IP') ?? 'unknown'}:${new URL(c.req.url).pathname}` });
@@ -91,12 +115,21 @@ app.post("/api/execution/:actionKey/reconcile", async (c) => {
   );
   if ("error" in auth) return auth.error;
 
-  const result = await reconcileExecution(
-    c.env,
-    c.req.param("actionKey"),
-  );
+  const replay = await reserveWriteOrReplay(c, auth);
+  if (replay) return replay;
 
-  return c.json({ data: result }, result.state === "pending" ? 202 : 200);
+  try {
+    const result = await reconcileExecution(
+      c.env,
+      c.req.param("actionKey"),
+    );
+    const response = { data: result };
+    await completeIdempotency(c, auth, result.state === "pending" ? 202 : 200, response);
+    return c.json(response, result.state === "pending" ? 202 : 200);
+  } catch (error) {
+    await releaseIdempotency(c, auth);
+    throw error;
+  }
 });
 
 app.post("/api/liquidity-requests/:id/onchain", async (c) => {
@@ -108,6 +141,9 @@ app.post("/api/liquidity-requests/:id/onchain", async (c) => {
     key: "wallet:" + auth.wallet,
   });
   if (!allowed.success) return c.json({ error: "Write rate limit exceeded" }, 429);
+
+  const replay = await reserveWriteOrReplay(c, auth);
+  if (replay) return replay;
 
   const id = c.req.param("id");
   const db = drizzle(c.env.DB);
@@ -125,8 +161,15 @@ app.post("/api/liquidity-requests/:id/onchain", async (c) => {
     return c.json({ error: "Signed wallet does not own this request" }, 403);
   }
 
-  const result = await createOnchainRequest(c.env, id);
-  return c.json({ data: result }, result.state === "confirmed" ? 200 : 202);
+  try {
+    const result = await createOnchainRequest(c.env, id);
+    const response = { data: result };
+    await completeIdempotency(c, auth, result.state === "confirmed" ? 200 : 202, response);
+    return c.json(response, result.state === "confirmed" ? 200 : 202);
+  } catch (error) {
+    await releaseIdempotency(c, auth);
+    throw error;
+  }
 });
 
 app.post("/api/liquidity-requests/:id/fill", async (c) => {
@@ -134,12 +177,22 @@ app.post("/api/liquidity-requests/:id/fill", async (c) => {
   const auth = await authenticateSignedRequest(c, "fill-liquidity-request", body);
   if ("error" in auth) return auth.error;
 
-  const result = await fillOnchainRequest(
-    c.env,
-    c.req.param("id"),
-    auth.wallet,
-  );
-  return c.json({ data: result }, result.state === "confirmed" ? 200 : 202);
+  const replay = await reserveWriteOrReplay(c, auth);
+  if (replay) return replay;
+
+  try {
+    const result = await fillOnchainRequest(
+      c.env,
+      c.req.param("id"),
+      auth.wallet,
+    );
+    const response = { data: result };
+    await completeIdempotency(c, auth, result.state === "confirmed" ? 200 : 202, response);
+    return c.json(response, result.state === "confirmed" ? 200 : 202);
+  } catch (error) {
+    await releaseIdempotency(c, auth);
+    throw error;
+  }
 });
 
 app.post("/api/liquidity-requests/:id/execute", async (c) => {
@@ -166,15 +219,24 @@ app.post("/api/liquidity-requests/:id/execute", async (c) => {
     }, 400);
   }
 
-  const result = await executeVaultAdapter(c.env, {
-    requestId: c.req.param("id"),
-    vaultId: body.vaultId,
-    assetsToFund: body.assetsToFund,
-    adapterData: body.adapterData as Hex,
-    signedWallet: auth.wallet,
-  });
+  const replay = await reserveWriteOrReplay(c, auth);
+  if (replay) return replay;
 
-  return c.json({ data: result }, result.state === "confirmed" ? 200 : 202);
+  try {
+    const result = await executeVaultAdapter(c.env, {
+      requestId: c.req.param("id"),
+      vaultId: body.vaultId,
+      assetsToFund: body.assetsToFund,
+      adapterData: body.adapterData as Hex,
+      signedWallet: auth.wallet,
+    });
+    const response = { data: result };
+    await completeIdempotency(c, auth, result.state === "confirmed" ? 200 : 202, response);
+    return c.json(response, result.state === "confirmed" ? 200 : 202);
+  } catch (error) {
+    await releaseIdempotency(c, auth);
+    throw error;
+  }
 });
 
 app.post("/api/strategy/evaluate", async (c) => {
