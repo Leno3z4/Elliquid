@@ -26,7 +26,7 @@ export async function claimExecution(
     updatedAt: now,
   }).onConflictDoNothing();
 
-  if (inserted.rowsAffected === 1) {
+  if (inserted.meta.changes === 1) {
     return { state: "claimed" as const };
   }
 
@@ -69,7 +69,7 @@ export async function prepareExecution(
     eq(executionIntents.actionKey, actionKey),
     eq(executionIntents.status, "prepared"),
   ));
-  if (result.rowsAffected !== 1) throw new Error("EXECUTION_PREPARE_RACE");
+  if (result.meta.changes !== 1) throw new Error("EXECUTION_PREPARE_RACE");
 }
 
 export async function markExecution(
@@ -115,5 +115,5 @@ export async function markExecution(
     eq(executionIntents.actionKey, actionKey),
     eq(executionIntents.status, current.status),
   ));
-  if (result.rowsAffected !== 1) throw new Error("EXECUTION_TRANSITION_RACE");
+  if (result.meta.changes !== 1) throw new Error("EXECUTION_TRANSITION_RACE");
 }
