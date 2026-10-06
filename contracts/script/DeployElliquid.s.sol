@@ -58,7 +58,8 @@ contract DeployElliquid is Script {
         );
         vault = ElliquidVault(vaultAddress);
 
-        vault.setPauseGuardian(pauseGuardian);
+        vault.startPauseGuardianUpdate(pauseGuardian);
+        vault.acceptPauseGuardianUpdate();
         marketplace.startOperatorUpdate(executor);
         marketplace.acceptOperatorUpdate();
 
