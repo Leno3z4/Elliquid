@@ -126,7 +126,14 @@ async function submitRawContractCall(env: Env, args: {
           blockTag: "pending",
         });
 
-  const request = await publicClient.prepareTransactionRequest({
+  await publicClient.call({
+    account: account.address,
+    to: args.to,
+    data: args.data,
+    value: args.value ?? 0n,
+  });
+
+  const request = await walletClient.prepareTransactionRequest({
     account: account.address,
     to: args.to,
     data: args.data,
@@ -134,7 +141,7 @@ async function submitRawContractCall(env: Env, args: {
     nonce,
   });
 
-  const raw = await account.signTransaction(request);
+  const raw = await walletClient.signTransaction(request);
   const txHash = keccak256(raw) as Hex;
 
   await prepareExecution(env, args.actionKey, {
@@ -168,6 +175,13 @@ async function submitRawContractCall(env: Env, args: {
     // safely use the same nonce instead of creating a second on-chain action.
     throw new Error("TX_SUBMISSION_UNCERTAIN");
   }
+}
+
+export async function reconcileExecution(env: Env, actionKeyValue: string) {
+  if (!/^0x[0-9a-fA-F]{64}$/.test(actionKeyValue)) {
+    throw new Error("INVALID_ACTION_KEY");
+  }
+  return tryReconcile(env, actionKeyValue);
 }
 
 function requireExecutor(env: Env, suppliedWallet?: string) {
