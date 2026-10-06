@@ -14,7 +14,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
 
       - run: npm install
       - run: npm run lint
@@ -32,5 +31,6 @@ jobs:
         with:
           version: stable
 
+      - run: forge install foundry-rs/forge-std --no-commit
       - run: forge build
       - run: forge test
