@@ -367,7 +367,7 @@ app.post("/api/liquidity-requests", async (c) => {
       projectId: body.projectId,
       strategyId: body.strategyId,
       targetQuote: body.targetQuote,
-      requestKey: `${auth.wallet}:${auth.requestHash}`,
+      requestKey: `${auth.wallet}:${auth.idempotencyKey}`,
       durationSeconds: body.durationSeconds ?? 86400,
       maxInventoryBps: body.maxInventoryBps ?? 1000,
       liquidityFeeBps: body.liquidityFeeBps ?? 300,
