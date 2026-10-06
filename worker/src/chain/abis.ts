@@ -2,6 +2,10 @@ import type { Abi } from "viem";
 
 export const marketplaceAbi = [
   { type: "function", name: "operator", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+  { type: "function", name: "minDurationSeconds", stateMutability: "view", inputs: [], outputs: [{ type: "uint64" }] },
+  { type: "function", name: "maxDurationSeconds", stateMutability: "view", inputs: [], outputs: [{ type: "uint64" }] },
+  { type: "function", name: "maxInventoryBps", stateMutability: "view", inputs: [], outputs: [{ type: "uint16" }] },
+  { type: "function", name: "maxLiquidityFeeBps", stateMutability: "view", inputs: [], outputs: [{ type: "uint16" }] },
   {
     type: "function",
     name: "createRequestFor",
