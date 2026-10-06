@@ -147,7 +147,11 @@ app.post("/api/liquidity-requests/:id/execute", async (c) => {
     vaultId?: string;
     assetsToFund?: string;
     adapterData?: string;
-  }>().catch(() => ({}));
+  }>().catch(() => ({} as {
+    vaultId?: string;
+    assetsToFund?: string;
+    adapterData?: string;
+  }));
 
   const auth = await authenticateSignedRequest(
     c,
