@@ -103,55 +103,110 @@ contract V2SingleSidedLiquidityAdapter {
         IERC20V2 output = IERC20V2(p.tokenOut);
 
         uint256 beforeOut = output.balanceOf(address(this));
-
         require(input.transferFrom(vault, address(this), p.amountIn), "PULL_INPUT");
 
         uint256 swapAmount = p.amountIn / 2;
         uint256 lpInputAmount = p.amountIn - swapAmount;
 
-        require(input.approve(router, 0), "RESET_INPUT");
-        require(input.approve(router, swapAmount), "APPROVE_SWAP");
+        _swap(input, p.tokenIn, p.tokenOut, swapAmount, p.minSwapOut, p.deadline);
 
-        address[] memory path = new address[](2);
-        path[0] = p.tokenIn;
-        path[1] = p.tokenOut;
-
-        IV2Router(router).swapExactTokensForTokens(
-            swapAmount,
-            p.minSwapOut,
-            path,
-            address(this),
-            p.deadline
-        );
-
-        uint256 afterOut = output.balanceOf(address(this));
-        uint256 swapOutput = afterOut - beforeOut;
+        uint256 swapOutput = output.balanceOf(address(this)) - beforeOut;
         require(swapOutput >= p.minSwapOut, "SWAP_MIN");
 
-        require(input.approve(router, 0), "RESET_INPUT_2");
-        require(input.approve(router, lpInputAmount), "APPROVE_LP_INPUT");
-        require(output.approve(router, 0), "RESET_OUTPUT");
-        require(output.approve(router, swapOutput), "APPROVE_LP_OUTPUT");
-
-        (, , uint256 liquidity) = IV2Router(router).addLiquidity(
+        uint256 liquidity = _addLiquidity(
+            input,
+            output,
             p.tokenIn,
             p.tokenOut,
             lpInputAmount,
             swapOutput,
             p.minTokenInToLp,
             p.minTokenOutToLp,
-            vault,
-            p.deadline
+            p.deadline,
+            vault
         );
         require(liquidity > 0, "ZERO_LP");
 
-        uint256 inputDust = input.balanceOf(address(this));
-        if (inputDust > 0) require(input.transfer(vault, inputDust), "RETURN_INPUT");
-        uint256 outputDust = output.balanceOf(address(this));
-        if (outputDust > 0) require(output.transfer(vault, outputDust), "RETURN_OUTPUT");
+        _returnDust(input, output, vault);
 
-        emit LiquidityAdded(vault, p.tokenIn, p.tokenOut, p.amountIn, swapOutput, liquidity);
+        emit LiquidityAdded(
+            vault,
+            p.tokenIn,
+            p.tokenOut,
+            p.amountIn,
+            swapOutput,
+            liquidity
+        );
 
         result = abi.encode(liquidity, swapOutput);
+    }
+
+    function _swap(
+        IERC20V2 input,
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 minSwapOut,
+        uint256 deadline
+    ) internal {
+        require(input.approve(router, 0), "RESET_INPUT");
+        require(input.approve(router, amountIn), "APPROVE_SWAP");
+
+        address[] memory path = new address[](2);
+        path[0] = tokenIn;
+        path[1] = tokenOut;
+
+        IV2Router(router).swapExactTokensForTokens(
+            amountIn,
+            minSwapOut,
+            path,
+            address(this),
+            deadline
+        );
+    }
+
+    function _addLiquidity(
+        IERC20V2 input,
+        IERC20V2 output,
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 amountOut,
+        uint256 minTokenIn,
+        uint256 minTokenOut,
+        uint256 deadline,
+        address recipient
+    ) internal returns (uint256 liquidity) {
+        require(input.approve(router, 0), "RESET_INPUT_2");
+        require(input.approve(router, amountIn), "APPROVE_LP_INPUT");
+        require(output.approve(router, 0), "RESET_OUTPUT");
+        require(output.approve(router, amountOut), "APPROVE_LP_OUTPUT");
+
+        (, , liquidity) = IV2Router(router).addLiquidity(
+            tokenIn,
+            tokenOut,
+            amountIn,
+            amountOut,
+            minTokenIn,
+            minTokenOut,
+            recipient,
+            deadline
+        );
+    }
+
+    function _returnDust(
+        IERC20V2 input,
+        IERC20V2 output,
+        address recipient
+    ) internal {
+        uint256 inputDust = input.balanceOf(address(this));
+        if (inputDust > 0) {
+            require(input.transfer(recipient, inputDust), "RETURN_INPUT");
+        }
+
+        uint256 outputDust = output.balanceOf(address(this));
+        if (outputDust > 0) {
+            require(output.transfer(recipient, outputDust), "RETURN_OUTPUT");
+        }
     }
 }
