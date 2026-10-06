@@ -88,6 +88,33 @@ contract ElliquidVaultTest {
         require(adapter.calls() == 1, "EXECUTED_TWICE");
     }
 
+    function testGuardianCanPauseStrategyButCannotUnpause() public {
+        address guardian = address(0xCAFE);
+        vault.setPauseGuardian(guardian);
+
+        (bool ok,) = guardian.call(
+            abi.encodeWithSelector(vault.guardianPauseStrategy.selector)
+        );
+        require(ok, "GUARDIAN_PAUSE_FAILED");
+
+        (bool execOk,) = address(vault).call(
+            abi.encodeWithSelector(
+                vault.executeAdapter.selector,
+                keccak256("paused-action"),
+                address(adapter),
+                0,
+                ""
+            )
+        );
+        require(!execOk, "STRATEGY_NOT_PAUSED");
+
+        (bool unpauseOk,) = guardian.call(
+            abi.encodeWithSelector(vault.setStrategyPaused.selector, false)
+        );
+        require(!unpauseOk, "GUARDIAN_UNPAUSE");
+        vault.setStrategyPaused(false);
+    }
+
     function testOwnerAndExecutorAreSeparateConcepts() public {
         address executor = address(0x1234);
         vault.setStrategyExecutor(executor);
