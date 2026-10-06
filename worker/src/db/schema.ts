@@ -78,6 +78,7 @@ export const executionIntents = sqliteTable("execution_intents", {
   actionKey: text("action_key").primaryKey(),
   vaultId: text("vault_id").references(() => vaults.id),
   action: text("action").notNull(),
+  referenceId: text("reference_id"),
   status: text("status", {
     enum: ["prepared", "broadcast", "confirmed", "failed_before_broadcast", "failed_after_broadcast"],
   }).notNull().default("prepared"),
