@@ -87,7 +87,7 @@ export async function markExecution(
   if (!current) throw new Error("EXECUTION_INTENT_NOT_FOUND");
 
   const allowed: Record<ExecutionStatus, ExecutionStatus[]> = {
-    prepared: ["broadcast", "failed_before_broadcast"],
+    prepared: ["broadcast", "confirmed", "failed_before_broadcast", "failed_after_broadcast"],
     broadcast: ["confirmed", "failed_after_broadcast"],
     confirmed: [],
     failed_before_broadcast: [],
