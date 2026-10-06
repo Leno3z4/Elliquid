@@ -114,7 +114,6 @@ export async function markExecution(
   }).where(and(
     eq(executionIntents.actionKey, actionKey),
     eq(executionIntents.status, current.status),
-    eq(executionIntents.actionKey, actionKey),
   ));
   if (result.meta.changes !== 1) throw new Error("EXECUTION_TRANSITION_RACE");
 }
