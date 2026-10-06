@@ -116,14 +116,16 @@ contract V2SingleSidedLiquidityAdapter {
         uint256 liquidity = _addLiquidity(
             input,
             output,
-            p.tokenIn,
-            p.tokenOut,
-            lpInputAmount,
-            swapOutput,
-            p.minTokenInToLp,
-            p.minTokenOutToLp,
-            p.deadline,
-            vault
+            LpParams({
+                tokenIn: p.tokenIn,
+                tokenOut: p.tokenOut,
+                amountIn: lpInputAmount,
+                amountOut: swapOutput,
+                minTokenIn: p.minTokenInToLp,
+                minTokenOut: p.minTokenOutToLp,
+                deadline: p.deadline,
+                recipient: vault
+            })
         );
         require(liquidity > 0, "ZERO_LP");
 
@@ -165,32 +167,36 @@ contract V2SingleSidedLiquidityAdapter {
         );
     }
 
+    struct LpParams {
+        address tokenIn;
+        address tokenOut;
+        uint256 amountIn;
+        uint256 amountOut;
+        uint256 minTokenIn;
+        uint256 minTokenOut;
+        uint256 deadline;
+        address recipient;
+    }
+
     function _addLiquidity(
         IERC20V2 input,
         IERC20V2 output,
-        address tokenIn,
-        address tokenOut,
-        uint256 amountIn,
-        uint256 amountOut,
-        uint256 minTokenIn,
-        uint256 minTokenOut,
-        uint256 deadline,
-        address recipient
+        LpParams memory lp
     ) internal returns (uint256 liquidity) {
         require(input.approve(router, 0), "RESET_INPUT_2");
-        require(input.approve(router, amountIn), "APPROVE_LP_INPUT");
+        require(input.approve(router, lp.amountIn), "APPROVE_LP_INPUT");
         require(output.approve(router, 0), "RESET_OUTPUT");
-        require(output.approve(router, amountOut), "APPROVE_LP_OUTPUT");
+        require(output.approve(router, lp.amountOut), "APPROVE_LP_OUTPUT");
 
         (, , liquidity) = IV2Router(router).addLiquidity(
-            tokenIn,
-            tokenOut,
-            amountIn,
-            amountOut,
-            minTokenIn,
-            minTokenOut,
-            recipient,
-            deadline
+            lp.tokenIn,
+            lp.tokenOut,
+            lp.amountIn,
+            lp.amountOut,
+            lp.minTokenIn,
+            lp.minTokenOut,
+            lp.recipient,
+            lp.deadline
         );
     }
 
