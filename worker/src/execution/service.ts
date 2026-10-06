@@ -48,31 +48,33 @@ async function tryReconcile(env: Env, actionKeyValue: string) {
   if (!intent) throw new Error("EXECUTION_INTENT_NOT_FOUND");
   if (!intent.txHash) return { state: "prepared" as const, txHash: intent.txHash, intent };
 
+  let receipt;
   try {
-    const receipt = await getElysiumClient(env).getTransactionReceipt({
+    receipt = await getElysiumClient(env).getTransactionReceipt({
       hash: intent.txHash as Hex,
     });
-    if (receipt.status === "success") {
-      if (intent.status === "prepared" || intent.status === "broadcast") {
-        await markExecution(env, actionKeyValue, "confirmed", {
-          txHash: intent.txHash,
-        });
-      }
-      return { state: "confirmed" as const, txHash: intent.txHash, receipt, intent };
-    }
-
-    if (intent.status === "prepared" || intent.status === "broadcast") {
-      await markExecution(
-        env,
-        actionKeyValue,
-        "failed_after_broadcast",
-        { txHash: intent.txHash, error: "TRANSACTION_REVERTED" },
-      );
-    }
-    return { state: "failed" as const, txHash: intent.txHash, receipt, intent };
   } catch {
     return { state: "pending" as const, txHash: intent.txHash, intent };
   }
+
+  if (receipt.status === "success") {
+    if (intent.status === "prepared" || intent.status === "broadcast") {
+      await markExecution(env, actionKeyValue, "confirmed", {
+        txHash: intent.txHash,
+      });
+    }
+    return { state: "confirmed" as const, txHash: intent.txHash, receipt, intent };
+  }
+
+  if (intent.status === "prepared" || intent.status === "broadcast") {
+    await markExecution(
+      env,
+      actionKeyValue,
+      "failed_after_broadcast",
+      { txHash: intent.txHash, error: "TRANSACTION_REVERTED" },
+    );
+  }
+  return { state: "failed" as const, txHash: intent.txHash, receipt, intent };
 }
 
 async function submitRawContractCall(env: Env, args: {
@@ -111,6 +113,7 @@ async function submitRawContractCall(env: Env, args: {
     if (existing.row.status === "prepared" && existing.row.txHash) {
       const reconciled = await tryReconcile(env, args.actionKey);
       if (reconciled.state !== "pending") return reconciled;
+      throw new Error("TX_SUBMISSION_UNCERTAIN");
     }
   }
 
