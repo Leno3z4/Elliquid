@@ -102,6 +102,36 @@ contract ElliquidVaultTest {
         require(!ok, "ZERO_NAV_ACCEPTED");
         require(vault.totalManagedAssets() == 100 ether, "NAV_CHANGED");
     }
+
+    function testUnapprovedAddressCannotReportNav() public {
+        (bool ok,) = address(vault).call(
+            abi.encodeWithSelector(vault.reportManagedAssets.selector, 100 ether)
+        );
+        require(!ok, "UNAPPROVED_NAV_REPORTER");
+    }
+
+    function testLossCircuitBreakerRejectsExcessiveLoss() public {
+        vault.deposit(100 ether);
+        (bool ok,) = address(vault).call(
+            abi.encodeWithSelector(vault.reportManagedAssets.selector, 80 ether)
+        );
+        require(!ok, "EXCESSIVE_LOSS_ACCEPTED");
+        require(vault.totalManagedAssets() == 100 ether, "LOSS_BYPASSED");
+    }
+
+    function testAdapterCannotBeReusedAfterRemoval() public {
+        vault.setAdapterAllowed(address(adapter), false);
+        (bool ok,) = address(vault).call(
+            abi.encodeWithSelector(
+                vault.executeAdapter.selector,
+                keccak256("removed-adapter"),
+                address(adapter),
+                0,
+                ""
+            )
+        );
+        require(!ok, "REMOVED_ADAPTER_EXECUTED");
+    }
 }
 
 contract LiquidityMarketplaceTest {
