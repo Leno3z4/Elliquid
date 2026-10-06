@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Script} from "forge-std/Script.sol";
-import {ElliquidVault} from "../src/ElliquidVault.sol";
+import {ElliquidVault, IERC20} from "../src/ElliquidVault.sol";
 import {LiquidityMarketplace} from "../src/LiquidityMarketplace.sol";
 
 /// @notice Deploys Elliquid core contracts without embedding private keys or token addresses.
