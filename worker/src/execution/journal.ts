@@ -12,7 +12,7 @@ export type ExecutionStatus =
 
 export async function claimExecution(
   env: Env,
-  args: { actionKey: string; vaultId?: string; action: string },
+  args: { actionKey: string; vaultId?: string; action: string; referenceId?: string },
 ) {
   const db = drizzle(env.DB);
   const now = new Date();
@@ -21,6 +21,7 @@ export async function claimExecution(
     actionKey: args.actionKey,
     vaultId: args.vaultId,
     action: args.action,
+    referenceId: args.referenceId,
     status: "prepared",
     createdAt: now,
     updatedAt: now,
