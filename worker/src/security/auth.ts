@@ -108,7 +108,7 @@ export async function reserveIdempotency(
     expiresAt,
   }).onConflictDoNothing();
 
-  if (inserted.rowsAffected === 1) return { state: "new" as const };
+  if (inserted.meta.changes === 1) return { state: "new" as const };
 
   const rows = await db.select().from(idempotencyKeys).where(and(
     eq(idempotencyKeys.wallet, request.wallet),
