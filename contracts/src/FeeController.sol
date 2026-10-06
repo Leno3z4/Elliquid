@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 interface IFeeToken {
     function transfer(address to, uint256 value) external returns (bool);
+    function transferFrom(address from, address to, uint256 value) external returns (bool);
 }
 
 /// @notice Protocol fee policy and treasury for Elliquid.
