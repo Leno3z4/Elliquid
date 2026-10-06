@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import {
   encodeFunctionData,
@@ -81,6 +81,7 @@ async function submitRawContractCall(env: Env, args: {
   actionKey: Hex;
   action: string;
   vaultId?: string;
+  referenceId?: string;
   to: Address;
   data: Hex;
   value?: bigint;
@@ -89,6 +90,7 @@ async function submitRawContractCall(env: Env, args: {
     actionKey: args.actionKey,
     vaultId: args.vaultId,
     action: args.action,
+    referenceId: args.referenceId,
   });
 
   if (existing.state === "conflict") throw new Error("EXECUTION_KEY_CONFLICT");
@@ -180,11 +182,64 @@ async function submitRawContractCall(env: Env, args: {
   }
 }
 
+async function finalizeConfirmedIntent(env: Env, actionKeyValue: string) {
+  const intent = await getIntent(env, actionKeyValue);
+  if (!intent || intent.status !== "confirmed" || !intent.referenceId || !intent.txHash) return;
+  const db = drizzle(env.DB);
+
+  if (intent.action === "marketplace-create-request") {
+    const rows = await db.select().from(liquidityRequests)
+      .where(eq(liquidityRequests.id, intent.referenceId)).limit(1);
+    const request = rows[0];
+    if (!request || request.onchainRequestId !== null) return;
+    const receipt = await getElysiumClient(env).getTransactionReceipt({ hash: intent.txHash as Hex });
+    const logs = parseEventLogs({ abi: marketplaceAbi, eventName: "RequestCreated", logs: receipt.logs });
+    const onchainId = logs[0]?.args.id;
+    if (onchainId === undefined) throw new Error("REQUEST_CREATED_EVENT_MISSING");
+    await db.update(liquidityRequests).set({
+      onchainRequestId: Number(onchainId),
+      lastTxHash: intent.txHash,
+    }).where(eq(liquidityRequests.id, intent.referenceId));
+    return;
+  }
+
+  if (intent.action === "marketplace-fill-request") {
+    await db.update(liquidityRequests).set({
+      status: "filled",
+      lastTxHash: intent.txHash,
+    }).where(eq(liquidityRequests.id, intent.referenceId));
+    return;
+  }
+
+  if (intent.action === "vault-adapter-execute") {
+    await db.update(liquidityRequests).set({ lastTxHash: intent.txHash })
+      .where(eq(liquidityRequests.id, intent.referenceId));
+  }
+}
+
+export async function reconcilePendingExecutions(env: Env) {
+  const db = drizzle(env.DB);
+  const intents = await db.select().from(executionIntents)
+    .where(inArray(executionIntents.status, ["prepared", "broadcast"]))
+    .limit(50);
+
+  const results = [];
+  for (const intent of intents) {
+    if (!intent.txHash) continue;
+    const result = await tryReconcile(env, intent.actionKey);
+    if (result.state === "confirmed") await finalizeConfirmedIntent(env, intent.actionKey);
+    results.push({ actionKey: intent.actionKey, state: result.state, txHash: intent.txHash });
+  }
+  return results;
+}
+
 export async function reconcileExecution(env: Env, actionKeyValue: string) {
   if (!/^0x[0-9a-fA-F]{64}$/.test(actionKeyValue)) {
     throw new Error("INVALID_ACTION_KEY");
   }
-  return tryReconcile(env, actionKeyValue);
+  const result = await tryReconcile(env, actionKeyValue);
+  if (result.state === "confirmed") await finalizeConfirmedIntent(env, actionKeyValue);
+  return result;
 }
 
 function requireExecutor(env: Env, suppliedWallet?: string) {
@@ -283,6 +338,7 @@ export async function createOnchainRequest(env: Env, requestId: string) {
   const result = await submitRawContractCall(env, {
     actionKey: executionKey,
     action: "marketplace-create-request",
+    referenceId: request.id,
     to: marketplace,
     data,
   });
@@ -357,6 +413,7 @@ export async function fillOnchainRequest(
   const result = await submitRawContractCall(env, {
     actionKey: executionKey,
     action: "marketplace-fill-request",
+    referenceId: request.id,
     to: marketplace,
     data,
   });
@@ -482,6 +539,8 @@ export async function executeVaultAdapter(
   const result = await submitRawContractCall(env, {
     actionKey: executionKey,
     action: "vault-adapter-execute",
+    vaultId: vault.id,
+    referenceId: request.id,
     vaultId: vault.id,
     to: vaultAddress,
     data,
