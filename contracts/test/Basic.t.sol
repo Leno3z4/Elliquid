@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {ElliquidVault} from "../src/ElliquidVault.sol";
+import {ElliquidVault, IERC20} from "../src/ElliquidVault.sol";
 import {LiquidityMarketplace} from "../src/LiquidityMarketplace.sol";
 
 contract MockERC20 is IERC20 {
