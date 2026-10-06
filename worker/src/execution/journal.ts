@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { executionIntents } from "../db/schema";
 import type { Env } from "../env";
@@ -70,6 +70,8 @@ export async function prepareExecution(
   }).where(and(
     eq(executionIntents.actionKey, actionKey),
     eq(executionIntents.status, "prepared"),
+    isNull(executionIntents.txHash),
+    isNull(executionIntents.nonce),
   ));
   if (result.meta.changes !== 1) throw new Error("EXECUTION_PREPARE_RACE");
 }
