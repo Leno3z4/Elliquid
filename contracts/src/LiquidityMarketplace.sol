@@ -25,6 +25,7 @@ contract LiquidityMarketplace {
     address public owner;
     address public pendingOwner;
     address public operator;
+    address public pendingOperator;
 
     // Product configuration. Absolute ceilings remain enforced by setRequestLimits().
     uint64 public minDurationSeconds = 1 hours;
@@ -37,6 +38,7 @@ contract LiquidityMarketplace {
 
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event OwnershipTransferStarted(address indexed currentOwner, address indexed pendingOwner);
+    event OperatorUpdateStarted(address indexed currentOperator, address indexed pendingOperator);
     event OperatorSet(address indexed operator);
     event RequestLimitsSet(uint64 minDurationSeconds, uint64 maxDurationSeconds, uint16 maxInventoryBps, uint16 maxLiquidityFeeBps);
     event RequestCreated(uint256 indexed id, address indexed creator, bytes32 indexed requestKey, address baseToken, address quoteToken, uint256 targetQuote);
@@ -60,10 +62,17 @@ contract LiquidityMarketplace {
         emit OwnershipTransferred(address(0), _owner);
     }
 
-    function setOperator(address newOperator) external onlyOwner {
+    function startOperatorUpdate(address newOperator) external onlyOwner {
         require(newOperator != address(0), "BAD_OPERATOR");
-        operator = newOperator;
-        emit OperatorSet(newOperator);
+        pendingOperator = newOperator;
+        emit OperatorUpdateStarted(operator, newOperator);
+    }
+
+    function acceptOperatorUpdate() external onlyOwner {
+        require(pendingOperator != address(0), "NO_PENDING_OPERATOR");
+        operator = pendingOperator;
+        pendingOperator = address(0);
+        emit OperatorSet(operator);
     }
 
     /// @notice Changes product/economic limits without weakening immutable safety rails.
