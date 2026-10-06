@@ -202,6 +202,7 @@ export async function createOnchainRequest(env: Env, requestId: string) {
     .limit(1);
   const request = rows[0];
   if (!request) throw new Error("LIQUIDITY_REQUEST_NOT_FOUND");
+  if (request.status !== "open") throw new Error("REQUEST_NOT_OPEN");
   if (request.onchainRequestId !== null) {
     return { state: "existing" as const, request };
   }
@@ -330,6 +331,7 @@ export async function fillOnchainRequest(
   if (!request || request.onchainRequestId === null) {
     throw new Error("ONCHAIN_REQUEST_NOT_READY");
   }
+  if (request.status !== "open") throw new Error("REQUEST_NOT_OPEN");
 
   const marketplace = asAddress(env.MARKETPLACE_ADDRESS ?? "", "marketplace");
   const account = getExecutionAccount(env);
