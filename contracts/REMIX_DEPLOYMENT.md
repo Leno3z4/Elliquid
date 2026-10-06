@@ -37,6 +37,7 @@ Constructor:
 | _name | Your chosen vault name |
 | _symbol | Your chosen vault share symbol |
 | _owner | Governance/owner wallet |
+| _strategyExecutor | Initial dedicated keeper/executor wallet |
 
 The constructor initially sets strategyExecutor = owner.
 
@@ -46,12 +47,13 @@ Immediately after deployment, record the vault address.
 
 On the marketplace:
 
-- call `setOperator(executorWallet)`
+- call `startOperatorUpdate(executorWallet)`
+- call `acceptOperatorUpdate()`
 
 On the vault:
 
-- call `setStrategyExecutor(executorWallet)`
-- call `setPauseGuardian(guardianWallet)`
+- call `startStrategyExecutorUpdate(executorWallet)`, then `acceptStrategyExecutorUpdate()`
+- call `startPauseGuardianUpdate(guardianWallet)`, then `acceptPauseGuardianUpdate()`
 - keep `setMaxAdapterFundingBps` conservative
 - only approve verified adapters
 
