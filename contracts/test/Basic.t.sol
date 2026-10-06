@@ -119,6 +119,32 @@ contract ElliquidVaultTest {
         require(vault.totalManagedAssets() == 100 ether, "LOSS_BYPASSED");
     }
 
+    function testAdapterFundingCap() public {
+        vault.deposit(100 ether);
+        require(vault.maxAdapterFundingBps() == 2500, "DEFAULT_CAP");
+        (bool ok,) = address(vault).call(
+            abi.encodeWithSelector(
+                vault.executeAdapter.selector,
+                keccak256("too-much"),
+                address(adapter),
+                26 ether,
+                ""
+            )
+        );
+        require(!ok, "FUNDING_CAP_BYPASSED");
+
+        vault.setMaxAdapterFundingBps(5000);
+        vault.executeAdapter(keccak256("within-cap"), address(adapter), 50 ether, "");
+        require(adapter.calls() == 1, "CAP_UPDATE_FAILED");
+    }
+
+    function testAdapterCannotSetFundingCapAboveSafetyRail() public {
+        (bool ok,) = address(vault).call(
+            abi.encodeWithSelector(vault.setMaxAdapterFundingBps.selector, 5001)
+        );
+        require(!ok, "CAP_SAFETY_RAIL_BYPASSED");
+    }
+
     function testAdapterCannotBeReusedAfterRemoval() public {
         vault.setAdapterAllowed(address(adapter), false);
         (bool ok,) = address(vault).call(
