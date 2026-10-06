@@ -84,7 +84,7 @@ The execution engine will be introduced inside the Worker runtime as a separate 
 - [ ] chain event indexer
 - [ ] strategy / allocation engine
 - [ ] rebalance keeper
-- [ ] testnet deployment
+- [ ] testnet deployment (awaiting verified venue + end-to-end test)
 - [ ] contract test suite
 - [ ] audit hardening
 
@@ -107,3 +107,8 @@ Execution lifecycle:
 `authenticated request -> D1 execution intent -> nonce/hash reservation -> RPC preflight -> sign -> broadcast -> receipt reconciliation -> state transition`.
 
 An uncertain broadcast is left recoverable under the same action key/nonce; the service does not automatically submit a second transaction while the original status is unknown.
+
+
+## Deployment configuration
+
+See `contracts/REMIX_DEPLOYMENT.md` for the Remix deployment order, configurable parameters, safety boundaries and Elysium-specific integration rules.
