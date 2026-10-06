@@ -132,6 +132,30 @@ contract ElliquidVaultTest {
         );
         require(!ok, "REMOVED_ADAPTER_EXECUTED");
     }
+
+    function testAdapterFundingLimitCapsSingleCall() public {
+        vault.deposit(100 ether);
+
+        (bool ok,) = address(vault).call(
+            abi.encodeWithSelector(
+                vault.executeAdapter.selector,
+                keccak256("fund-too-much"),
+                address(adapter),
+                26 ether,
+                ""
+            )
+        );
+        require(!ok, "FUNDING_CAP_BYPASSED");
+
+        vault.setMaxAdapterFundingBps(5000);
+        vault.executeAdapter(
+            keccak256("fund-with-new-cap"),
+            address(adapter),
+            50 ether,
+            ""
+        );
+        require(adapter.calls() == 1, "FUNDING_CAP_NOT_UPDATED");
+    }
 }
 
 contract LiquidityMarketplaceTest {
@@ -193,5 +217,59 @@ contract LiquidityMarketplaceTest {
         address nextOwner = address(0x7777);
         market.startOwnershipTransfer(nextOwner);
         require(market.pendingOwner() == nextOwner, "PENDING");
+    }
+
+    function testRequestLimitsCanChangeWithinSafetyCeilings() public {
+        market.setRequestLimits(1 hours, 7 days, 5000, 750);
+        require(market.minDurationSeconds() == 1 hours, "MIN_LIMIT");
+        require(market.maxDurationSeconds() == 7 days, "MAX_LIMIT");
+        require(market.maxInventoryBps() == 5000, "INVENTORY_LIMIT");
+        require(market.maxLiquidityFeeBps() == 750, "FEE_LIMIT");
+
+        (bool ok,) = address(market).call(
+            abi.encodeWithSelector(
+                market.setRequestLimits.selector,
+                1,
+                90 days + 1,
+                10001,
+                1001
+            )
+        );
+        require(!ok, "SAFETY_CEILING_BYPASSED");
+    }
+
+    function testCreateRequestForPreservesCreator() public {
+        address creator = address(0x8888);
+        bytes32 key = keccak256("operator-request");
+        uint256 id = market.createRequestFor(
+            creator,
+            key,
+            address(0x1111),
+            address(0x2222),
+            1000,
+            1 days,
+            1000,
+            300
+        );
+
+        (
+            uint256 storedId,
+            address storedCreator,
+            ,
+            ,
+            ,
+            ,
+            ,
+            ,
+            ,
+            ,
+            ,
+            ,
+            bytes32 storedKey
+        ) = market.requests(id);
+
+        require(storedId == id, "ID");
+        require(storedCreator == creator, "CREATOR");
+        require(storedKey == key, "REQUEST_KEY");
     }
 }
