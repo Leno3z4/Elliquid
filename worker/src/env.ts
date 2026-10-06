@@ -3,6 +3,9 @@ export interface Env {
   API_ORIGIN?: string;
   ENVIRONMENT?: string;
   ELYSIUM_RPC_URL?: string;
+  MARKETPLACE_ADDRESS?: string;
+  EXECUTOR_PRIVATE_KEY?: string;
+  EXECUTOR_ADDRESS?: string;
   MIN_REQUEST_DURATION_SECONDS?: string;
   MAX_REQUEST_DURATION_SECONDS?: string;
   MAX_INVENTORY_BPS?: string;
