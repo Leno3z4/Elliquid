@@ -69,9 +69,9 @@ contract ElliquidVault {
         name = _name;
         symbol = _symbol;
         owner = _owner;
-        strategyExecutor = _owner;
+        strategyExecutor = _strategyExecutor;
         emit OwnershipTransferred(address(0), _owner);
-        emit StrategyExecutorSet(_owner);
+        emit StrategyExecutorSet(_strategyExecutor);
     }
 
     event Deposited(address indexed user, uint256 assets, uint256 shares);
