@@ -109,8 +109,56 @@ contract LiquidityMarketplace {
         uint16 inventoryCapBps,
         uint16 liquidityFeeBps
     ) external returns (uint256 id) {
+        id = _createRequest(
+            msg.sender,
+            requestKey,
+            baseToken,
+            quoteToken,
+            targetQuote,
+            durationSeconds,
+            inventoryCapBps,
+            liquidityFeeBps
+        );
+    }
+
+    /// @notice Operator-submitted request creation that preserves the project's creator.
+    /// @dev The operator may only call this after the project has authenticated the request off-chain.
+    ///      No project funds move in this function.
+    function createRequestFor(
+        address creator,
+        bytes32 requestKey,
+        address baseToken,
+        address quoteToken,
+        uint256 targetQuote,
+        uint64 durationSeconds,
+        uint16 inventoryCapBps,
+        uint16 liquidityFeeBps
+    ) external onlyOperator returns (uint256 id) {
+        require(creator != address(0), "BAD_CREATOR");
+        id = _createRequest(
+            creator,
+            requestKey,
+            baseToken,
+            quoteToken,
+            targetQuote,
+            durationSeconds,
+            inventoryCapBps,
+            liquidityFeeBps
+        );
+    }
+
+    function _createRequest(
+        address creator,
+        bytes32 requestKey,
+        address baseToken,
+        address quoteToken,
+        uint256 targetQuote,
+        uint64 durationSeconds,
+        uint16 inventoryCapBps,
+        uint16 liquidityFeeBps
+    ) internal returns (uint256 id) {
         require(requestKey != bytes32(0), "BAD_REQUEST_KEY");
-        require(requestIdByKey[msg.sender][requestKey] == 0, "REQUEST_KEY_USED");
+        require(requestIdByKey[creator][requestKey] == 0, "REQUEST_KEY_USED");
         require(baseToken != address(0) && quoteToken != address(0), "BAD_TOKEN");
         require(baseToken != quoteToken, "SAME_TOKEN");
         require(targetQuote > 0, "ZERO_TARGET");
@@ -125,7 +173,7 @@ contract LiquidityMarketplace {
 
         requests[id] = Request({
             id: id,
-            creator: msg.sender,
+            creator: creator,
             baseToken: baseToken,
             quoteToken: quoteToken,
             targetQuote: targetQuote,
@@ -138,8 +186,8 @@ contract LiquidityMarketplace {
             requestKey: requestKey
         });
 
-        requestIdByKey[msg.sender][requestKey] = id;
-        emit RequestCreated(id, msg.sender, requestKey, baseToken, quoteToken, targetQuote);
+        requestIdByKey[creator][requestKey] = id;
+        emit RequestCreated(id, creator, requestKey, baseToken, quoteToken, targetQuote);
     }
 
     function cancelRequest(uint256 id) external {
