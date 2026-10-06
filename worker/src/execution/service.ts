@@ -46,22 +46,22 @@ async function getIntent(env: Env, actionKeyValue: string) {
 async function tryReconcile(env: Env, actionKeyValue: string) {
   const intent = await getIntent(env, actionKeyValue);
   if (!intent) throw new Error("EXECUTION_INTENT_NOT_FOUND");
-  if (!intent.txHash) return { state: "prepared" as const, intent };
+  if (!intent.txHash) return { state: "prepared" as const, txHash: intent.txHash, intent };
 
   try {
     const receipt = await getElysiumClient(env).getTransactionReceipt({
       hash: intent.txHash as Hex,
     });
     if (receipt.status === "success") {
-      if (intent.status === "broadcast") {
+      if (intent.status === "prepared" || intent.status === "broadcast") {
         await markExecution(env, actionKeyValue, "confirmed", {
           txHash: intent.txHash,
         });
       }
-      return { state: "confirmed" as const, receipt, intent };
+      return { state: "confirmed" as const, txHash: intent.txHash, receipt, intent };
     }
 
-    if (intent.status === "broadcast") {
+    if (intent.status === "prepared" || intent.status === "broadcast") {
       await markExecution(
         env,
         actionKeyValue,
@@ -69,9 +69,9 @@ async function tryReconcile(env: Env, actionKeyValue: string) {
         { txHash: intent.txHash, error: "TRANSACTION_REVERTED" },
       );
     }
-    return { state: "failed" as const, receipt, intent };
+    return { state: "failed" as const, txHash: intent.txHash, receipt, intent };
   } catch {
-    return { state: "pending" as const, intent };
+    return { state: "pending" as const, txHash: intent.txHash, intent };
   }
 }
 
@@ -84,7 +84,7 @@ async function submitRawContractCall(env: Env, args: {
   value?: bigint;
 }) {
   const existing = await claimExecution(env, {
-    actionKey: args.action,
+    actionKey: args.actionKey,
     vaultId: args.vaultId,
     action: args.action,
   });
