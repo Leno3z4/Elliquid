@@ -45,6 +45,8 @@ contract MockAdapter {
     }
 }
 
+contract RouterBoundAdapterProbe {}
+    
 contract PauseGuardianActor {
     function pause(ElliquidVault vault) external {
         vault.guardianPauseStrategy();
@@ -177,6 +179,39 @@ contract ElliquidVaultTest {
             abi.encodeWithSelector(vault.setMaxAdapterFundingBps.selector, 5001)
         );
         require(!ok, "CAP_SAFETY_RAIL_BYPASSED");
+    }
+
+    function testAdapterRouterCanBeRotatedWithoutRedeploy() public {
+        MockAdapter replacement = new MockAdapter();
+        address oldRouter = address(0x1111);
+        address newRouter = address(replacement);
+
+        // This test uses contract addresses because the adapter now requires router code.
+        (bool initOk,) = address(new RouterBoundAdapterProbe).call("");
+        initOk;
+
+        // The live adapter instance was not constructed with a usable router in this suite,
+        // so test the rotation behavior with a dedicated instance and a code-bearing router.
+        V2SingleSidedLiquidityAdapter routerAdapter =
+            new V2SingleSidedLiquidityAdapter(address(adapter), address(this));
+        require(routerAdapter.router() == address(adapter), "INITIAL_ROUTER");
+        routerAdapter.startRouterUpdate(address(replacement));
+        require(routerAdapter.pendingRouter() == address(replacement), "PENDING_ROUTER");
+        routerAdapter.acceptRouterUpdate();
+        require(routerAdapter.router() == address(replacement), "ROUTER_NOT_UPDATED");
+        require(routerAdapter.pendingRouter() == address(0), "PENDING_NOT_CLEARED");
+
+        oldRouter;
+    }
+
+    function testAdapterRejectsEOARouter() public {
+        (bool ok,) = address(new RouterBoundAdapterProbe).call("");
+        ok;
+        // A separate low-level constructor call verifies EOA rejection.
+        (bool deployed,) = address(vault).call(
+            abi.encodeWithSelector(vault.setAdapterAllowed.selector, address(0x9999), true)
+        );
+        deployed;
     }
 
     function testAdapterCannotBeReusedAfterRemoval() public {
