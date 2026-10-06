@@ -63,8 +63,7 @@ contract ElliquidVaultFactory {
         require(vaultOwner != address(0), "BAD_VAULT_OWNER");
         require(strategyExecutor != address(0), "BAD_EXECUTOR");
 
-        vault = address(new ElliquidVault(asset, name, symbol, vaultOwner));
-        ElliquidVault(vault).setStrategyExecutor(strategyExecutor);
+        vault = address(new ElliquidVault(asset, name, symbol, vaultOwner, strategyExecutor));
 
         vaultByKey[vaultKey] = vault;
         isVault[vault] = true;
