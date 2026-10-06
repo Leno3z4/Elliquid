@@ -51,17 +51,36 @@ export async function markExecution(
 ) {
   const db = drizzle(env.DB);
   const rows = await db.select().from(executionIntents)
-    .where(and(
-      eq(executionIntents.actionKey, actionKey),
-    ))
+    .where(eq(executionIntents.actionKey, actionKey))
     .limit(1);
 
-  if (!rows[0]) throw new Error("EXECUTION_INTENT_NOT_FOUND");
+  const current = rows[0];
+  if (!current) throw new Error("EXECUTION_INTENT_NOT_FOUND");
+
+  const allowed: Record<ExecutionStatus, ExecutionStatus[]> = {
+    prepared: ["broadcast", "failed_before_broadcast"],
+    broadcast: ["confirmed", "failed_after_broadcast"],
+    confirmed: [],
+    failed_before_broadcast: [],
+    failed_after_broadcast: [],
+  };
+
+  if (!allowed[current.status].includes(status)) {
+    throw new Error("INVALID_EXECUTION_TRANSITION");
+  }
+
+  if ((status === "broadcast" || status === "confirmed" || status === "failed_after_broadcast") && !patch?.txHash && !current.txHash) {
+    throw new Error("TX_HASH_REQUIRED");
+  }
+
+  if (patch?.txHash && !/^0x[0-9a-fA-F]{64}$/.test(patch.txHash)) {
+    throw new Error("INVALID_TX_HASH");
+  }
 
   await db.update(executionIntents).set({
     status,
-    txHash: patch?.txHash ?? rows[0].txHash,
-    error: patch?.error ?? rows[0].error,
+    txHash: patch?.txHash ?? current.txHash,
+    error: patch?.error ?? current.error,
     updatedAt: new Date(),
   }).where(eq(executionIntents.actionKey, actionKey));
 }
