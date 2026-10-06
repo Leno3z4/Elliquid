@@ -7,6 +7,8 @@ import type { Env } from "./env";
 import { evaluateStrategy } from "./strategy/engine";
 import { authenticateSignedRequest, completeIdempotency, releaseIdempotency, reserveIdempotency } from "./security/auth";
 import { getElysiumClient } from "./chain/elysium";
+import { createOnchainRequest, executeVaultAdapter, fillOnchainRequest } from "./execution/service";
+import type { Hex } from "viem";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -78,6 +80,80 @@ app.get("/api/vaults", async (c) => {
   const db = drizzle(c.env.DB);
   const rows = await db.select().from(vaults).orderBy(desc(vaults.createdAt)).limit(100);
   return c.json({ data: rows });
+});
+
+app.post("/api/liquidity-requests/:id/onchain", async (c) => {
+  const body = await c.req.json<Record<string, unknown>>().catch(() => ({}));
+  const auth = await authenticateSignedRequest(c, "create-onchain-liquidity-request", body);
+  if ("error" in auth) return auth.error;
+
+  const allowed = await c.env.WRITE_RATE_LIMITER.limit({
+    key: "wallet:" + auth.wallet,
+  });
+  if (!allowed.success) return c.json({ error: "Write rate limit exceeded" }, 429);
+
+  const id = c.req.param("id");
+  const db = drizzle(c.env.DB);
+  const rows = await db.select().from(liquidityRequests)
+    .where(eq(liquidityRequests.id, id))
+    .limit(1);
+  const request = rows[0];
+  if (!request) return c.json({ error: "Liquidity request not found" }, 404);
+
+  const projectRows = await db.select().from(projects)
+    .where(eq(projects.id, request.projectId))
+    .limit(1);
+  const project = projectRows[0];
+  if (!project || project.wallet.toLowerCase() !== auth.wallet.toLowerCase()) {
+    return c.json({ error: "Signed wallet does not own this request" }, 403);
+  }
+
+  const result = await createOnchainRequest(c.env, id);
+  return c.json({ data: result }, result.state === "confirmed" ? 200 : 202);
+});
+
+app.post("/api/liquidity-requests/:id/fill", async (c) => {
+  const body = await c.req.json<Record<string, unknown>>().catch(() => ({}));
+  const auth = await authenticateSignedRequest(c, "fill-liquidity-request", body);
+  if ("error" in auth) return auth.error;
+
+  const result = await fillOnchainRequest(
+    c.env,
+    c.req.param("id"),
+    auth.wallet,
+  );
+  return c.json({ data: result }, result.state === "confirmed" ? 200 : 202);
+});
+
+app.post("/api/liquidity-requests/:id/execute", async (c) => {
+  const body = await c.req.json<{
+    vaultId?: string;
+    assetsToFund?: string;
+    adapterData?: string;
+  }>().catch(() => ({}));
+
+  const auth = await authenticateSignedRequest(
+    c,
+    "execute-liquidity-request",
+    body,
+  );
+  if ("error" in auth) return auth.error;
+
+  if (!body.vaultId || !body.assetsToFund || !body.adapterData) {
+    return c.json({
+      error: "vaultId, assetsToFund and adapterData are required",
+    }, 400);
+  }
+
+  const result = await executeVaultAdapter(c.env, {
+    requestId: c.req.param("id"),
+    vaultId: body.vaultId,
+    assetsToFund: body.assetsToFund,
+    adapterData: body.adapterData as Hex,
+    signedWallet: auth.wallet,
+  });
+
+  return c.json({ data: result }, result.state === "confirmed" ? 200 : 202);
 });
 
 app.post("/api/strategy/evaluate", async (c) => {
