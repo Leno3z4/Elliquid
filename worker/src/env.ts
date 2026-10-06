@@ -6,6 +6,7 @@ export interface Env {
   MARKETPLACE_ADDRESS?: string;
   EXECUTOR_PRIVATE_KEY?: string;
   EXECUTOR_ADDRESS?: string;
+  RECONCILE_BATCH_SIZE?: string;
   MIN_REQUEST_DURATION_SECONDS?: string;
   MAX_REQUEST_DURATION_SECONDS?: string;
   MAX_INVENTORY_BPS?: string;
