@@ -7,7 +7,7 @@ import type { Env } from "./env";
 import { evaluateStrategy } from "./strategy/engine";
 import { authenticateSignedRequest, completeIdempotency, releaseIdempotency, reserveIdempotency } from "./security/auth";
 import { getElysiumClient } from "./chain/elysium";
-import { createOnchainRequest, executeVaultAdapter, fillOnchainRequest } from "./execution/service";
+import { createOnchainRequest, executeVaultAdapter, fillOnchainRequest, reconcileExecution } from "./execution/service";
 import type { Hex } from "viem";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -80,6 +80,23 @@ app.get("/api/vaults", async (c) => {
   const db = drizzle(c.env.DB);
   const rows = await db.select().from(vaults).orderBy(desc(vaults.createdAt)).limit(100);
   return c.json({ data: rows });
+});
+
+app.post("/api/execution/:actionKey/reconcile", async (c) => {
+  const body = await c.req.json<Record<string, unknown>>().catch(() => ({}));
+  const auth = await authenticateSignedRequest(
+    c,
+    "reconcile-execution",
+    body,
+  );
+  if ("error" in auth) return auth.error;
+
+  const result = await reconcileExecution(
+    c.env,
+    c.req.param("actionKey"),
+  );
+
+  return c.json({ data: result }, result.state === "pending" ? 202 : 200);
 });
 
 app.post("/api/liquidity-requests/:id/onchain", async (c) => {
