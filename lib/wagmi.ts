@@ -11,7 +11,7 @@ export const elysiumTestnet = defineChain({
   },
   rpcUrls: {
     default: {
-      http: ["https://testnet-rpc.elysium.kinetiq.xyz"],
+      http: [process.env.NEXT_PUBLIC_ELYSIUM_RPC_URL?.trim() || "https://testnet-rpc.elysium.kinetiq.xyz"],
     },
   },
   testnet: true,
