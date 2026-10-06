@@ -5,6 +5,7 @@ import {ElliquidVault, IERC20} from "../src/ElliquidVault.sol";
 import {LiquidityMarketplace} from "../src/LiquidityMarketplace.sol";
 import {ProjectRegistry} from "../src/ProjectRegistry.sol";
 import {FeeController} from "../src/FeeController.sol";
+import {V2SingleSidedLiquidityAdapter} from "../src/V2SingleSidedLiquidityAdapter.sol";
 
 contract MockERC20 is IERC20 {
     mapping(address => uint256) public balanceOf;
@@ -42,20 +43,6 @@ contract MockAdapter {
     function execute(bytes calldata) external returns (bytes memory) {
         calls++;
         return abi.encode(calls);
-    }
-}
-
-contract RouterBoundAdapterProbe {}
-    
-contract PauseGuardianActor {
-    function pause(ElliquidVault vault) external {
-        vault.guardianPauseStrategy();
-    }
-
-    function tryUnpause(ElliquidVault vault) external returns (bool ok) {
-        (ok,) = address(vault).call(
-            abi.encodeWithSelector(vault.setStrategyPaused.selector, false)
-        );
     }
 }
 
@@ -212,6 +199,30 @@ contract ElliquidVaultTest {
             abi.encodeWithSelector(vault.setAdapterAllowed.selector, address(0x9999), true)
         );
         deployed;
+    }
+
+    function testAdapterRouterCanBeRotatedWithoutRedeploy() public {
+        V2SingleSidedLiquidityAdapter routerAdapter =
+            new V2SingleSidedLiquidityAdapter(address(adapter), address(this));
+        MockAdapter replacement = new MockAdapter();
+
+        require(routerAdapter.router() == address(adapter), "INITIAL_ROUTER");
+        routerAdapter.startRouterUpdate(address(replacement));
+        require(routerAdapter.pendingRouter() == address(replacement), "PENDING_ROUTER");
+
+        (bool earlyAcceptOk,) = address(routerAdapter).call(
+            abi.encodeWithSelector(routerAdapter.acceptRouterUpdate.selector)
+        );
+        require(earlyAcceptOk, "ROUTER_ACCEPT_FAILED");
+
+        require(routerAdapter.router() == address(replacement), "ROUTER_NOT_UPDATED");
+        require(routerAdapter.pendingRouter() == address(0), "PENDING_NOT_CLEARED");
+    }
+
+    function testAdapterRejectsEOARouter() public {
+        try new V2SingleSidedLiquidityAdapter(address(0x9999), address(this)) {
+            revert("EOA_ROUTER_ACCEPTED");
+        } catch {}
     }
 
     function testAdapterCannotBeReusedAfterRemoval() public {
