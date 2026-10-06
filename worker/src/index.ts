@@ -148,16 +148,24 @@ app.post("/api/liquidity-requests", async (c) => {
     return c.json({ error: "targetQuote must be a positive integer amount in base units" }, 400);
   }
 
-  if ((body.durationSeconds ?? 0) < 3600 || (body.durationSeconds ?? 0) > 30 * 24 * 3600) {
-    return c.json({ error: "durationSeconds must be between one hour and thirty days" }, 400);
+  const minDurationSeconds = Number(c.env.MIN_REQUEST_DURATION_SECONDS ?? 3600);
+  const maxDurationSeconds = Number(c.env.MAX_REQUEST_DURATION_SECONDS ?? 30 * 24 * 3600);
+  const maxInventoryBps = Number(c.env.MAX_INVENTORY_BPS ?? 10000);
+  const maxLiquidityFeeBps = Number(c.env.MAX_LIQUIDITY_FEE_BPS ?? 1000);
+  if (!Number.isInteger(minDurationSeconds) || minDurationSeconds < 60 ||
+      !Number.isInteger(maxDurationSeconds) || maxDurationSeconds < minDurationSeconds || maxDurationSeconds > 90 * 24 * 3600 ||
+      !Number.isInteger(maxInventoryBps) || maxInventoryBps < 0 || maxInventoryBps > 10000 ||
+      !Number.isInteger(maxLiquidityFeeBps) || maxLiquidityFeeBps < 0 || maxLiquidityFeeBps > 1000) {
+    return c.json({ error: "Invalid request limit configuration" }, 500);
   }
-
-  if ((body.maxInventoryBps ?? 1000) < 0 || (body.maxInventoryBps ?? 1000) > 10000) {
-    return c.json({ error: "maxInventoryBps must be between 0 and 10000" }, 400);
+  if ((body.durationSeconds ?? 0) < minDurationSeconds || (body.durationSeconds ?? 0) > maxDurationSeconds) {
+    return c.json({ error: "durationSeconds is outside the configured request limits" }, 400);
   }
-
-  if ((body.liquidityFeeBps ?? 300) < 0 || (body.liquidityFeeBps ?? 300) > 1000) {
-    return c.json({ error: "liquidityFeeBps must be between 0 and 1000" }, 400);
+  if ((body.maxInventoryBps ?? 1000) < 0 || (body.maxInventoryBps ?? 1000) > maxInventoryBps) {
+    return c.json({ error: "maxInventoryBps is outside the configured request limit" }, 400);
+  }
+  if ((body.liquidityFeeBps ?? 300) < 0 || (body.liquidityFeeBps ?? 300) > maxLiquidityFeeBps) {
+    return c.json({ error: "liquidityFeeBps is outside the configured request limit" }, 400);
   }
 
   const db = drizzle(c.env.DB);
