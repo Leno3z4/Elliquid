@@ -1,4 +1,4 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import {
   encodeFunctionData,
@@ -526,13 +526,20 @@ export async function executeVaultAdapter(
   }
 
   const amount = BigInt(args.assetsToFund);
+  const allocationRows = await db.select().from(executionIntents)
+    .where(
+      and(
+        eq(executionIntents.referenceId, request.id),
+        eq(executionIntents.action, "vault-adapter-execute"),
+      ),
+    )
+    .limit(1);
+  if (allocationRows[0]) {
+    throw new Error("REQUEST_ALREADY_ALLOCATED");
+  }
+
   const executionKey = actionKey(
-    "vault-adapter:" +
-      request.id +
-      ":" +
-      vault.id +
-      ":" +
-      keccak256(args.adapterData),
+    "vault-adapter:" + request.id + ":" + vault.id,
   );
 
   const data = encodeFunctionData({
