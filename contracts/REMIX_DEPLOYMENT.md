@@ -15,7 +15,19 @@ HYPE is native gas on Elysium. It is not the ERC-20 asset constructor argument f
 
 ## Deployment order in Remix
 
-### 1. Deploy ElliquidVault
+### 1. Deploy control-plane contracts
+
+Deploy these with the same governance owner:
+
+1. `ElliquidVaultFactory`
+2. `LiquidityMarketplace`
+3. `StrategyRegistry`
+4. `ProjectRegistry`
+5. `FeeController`
+
+Use a dedicated treasury for `FeeController`. Do not use a user deposit address as treasury.
+
+### 2. Create the vault
 
 Constructor:
 
@@ -30,19 +42,22 @@ The constructor initially sets strategyExecutor = owner.
 
 Immediately after deployment, record the vault address.
 
-### 2. Deploy LiquidityMarketplace
+### 3. Configure the marketplace and vault
 
-Constructor:
+On the marketplace:
 
-| Parameter | Value |
-|---|---|
-| _owner | The governance/owner wallet |
+- call `setOperator(executorWallet)`
 
-Then call setOperator(executorWallet).
+On the vault:
 
-Use the dedicated keeper/executor address, not a browser wallet that holds user funds.
+- call `setStrategyExecutor(executorWallet)`
+- call `setPauseGuardian(guardianWallet)`
+- keep `setMaxAdapterFundingBps` conservative
+- only approve verified adapters
 
-### 3. Deploy an AMM adapter only after the venue is verified
+The pause guardian can stop strategy execution but cannot unpause it or change economic configuration. Keep this key operationally separate from the owner where possible.
+
+### 4. Deploy an AMM adapter only after the venue is verified
 
 For DeployElliquidAdapter.s.sol, AMM_ROUTER means a verified V2-compatible AMM router.
 
@@ -115,8 +130,28 @@ Before the first testnet transaction verify:
 - adapter allowedVaults(vault) is true
 - adapter router is a verified AMM router, not a bridge router
 - request limits onchain match or exceed the Worker configuration
-- D1 migrations 0001 through 0011 have applied successfully
+- D1 migrations 0001 through 0012 have applied successfully
 - the first transaction uses an intentionally tiny test amount
+
+## Security/audit status
+
+This is still hackathon-stage code, not an external audit. The current hardening pass includes:
+
+- two-step ownership transfers
+- separate owner/executor/pause-guardian roles
+- strategy emergency pause
+- adapter allowlists on both vault and adapter
+- single-use action keys
+- per-call adapter funding cap
+- loss circuit breaker
+- zero-NAV protection
+- request-key idempotency
+- bounded marketplace economics
+- explicit project allowlisting
+- bounded fee policy
+- execution journaling and nonce/hash reconciliation in the Worker
+
+Before mainnet, perform an independent Solidity audit and adversarial integration testing against every real AMM/PropAMM adapter.
 
 ## What is deliberately not claimed
 
