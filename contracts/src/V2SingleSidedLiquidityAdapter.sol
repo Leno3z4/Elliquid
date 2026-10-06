@@ -33,8 +33,9 @@ interface IV2Router {
     ) external returns (uint256 amountA, uint256 amountB, uint256 liquidity);
 }
 
-/// @notice Converts one vault asset into a two-sided V2 liquidity position.
-/// @dev The router is immutable and vault callers are explicitly allowlisted.
+/// @notice Converts one vault asset into a two-sided position through a V2-compatible AMM router.
+/// @dev The router is immutable and venue-specific. Do not pass the Elysium bridge router here:
+///      bridge routers are not AMM swap/liquidity routers. Vaults explicitly allowlist this adapter.
 contract V2SingleSidedLiquidityAdapter {
     address public immutable router;
     address public owner;
