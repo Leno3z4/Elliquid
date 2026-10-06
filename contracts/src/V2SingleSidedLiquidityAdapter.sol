@@ -102,6 +102,7 @@ contract V2SingleSidedLiquidityAdapter {
         IERC20V2 input = IERC20V2(p.tokenIn);
         IERC20V2 output = IERC20V2(p.tokenOut);
 
+        uint256 startingInput = input.balanceOf(address(this));
         uint256 beforeOut = output.balanceOf(address(this));
         require(input.transferFrom(vault, address(this), p.amountIn), "PULL_INPUT");
 
@@ -129,7 +130,10 @@ contract V2SingleSidedLiquidityAdapter {
         );
         require(liquidity > 0, "ZERO_LP");
 
-        _returnDust(input, output, vault);
+        // Clear any residual router permissions before returning execution-local dust.
+        require(input.approve(router, 0), "CLEAR_INPUT");
+        require(output.approve(router, 0), "CLEAR_OUTPUT");
+        _returnExecutionDust(input, output, vault, startingInput, beforeOut);
 
         emit LiquidityAdded(
             vault,
@@ -200,19 +204,27 @@ contract V2SingleSidedLiquidityAdapter {
         );
     }
 
-    function _returnDust(
+    function _returnExecutionDust(
         IERC20V2 input,
         IERC20V2 output,
-        address recipient
+        address recipient,
+        uint256 startingInput,
+        uint256 startingOutput
     ) internal {
-        uint256 inputDust = input.balanceOf(address(this));
-        if (inputDust > 0) {
-            require(input.transfer(recipient, inputDust), "RETURN_INPUT");
+        uint256 endingInput = input.balanceOf(address(this));
+        if (endingInput > startingInput) {
+            require(
+                input.transfer(recipient, endingInput - startingInput),
+                "RETURN_INPUT"
+            );
         }
 
-        uint256 outputDust = output.balanceOf(address(this));
-        if (outputDust > 0) {
-            require(output.transfer(recipient, outputDust), "RETURN_OUTPUT");
+        uint256 endingOutput = output.balanceOf(address(this));
+        if (endingOutput > startingOutput) {
+            require(
+                output.transfer(recipient, endingOutput - startingOutput),
+                "RETURN_OUTPUT"
+            );
         }
     }
 }
