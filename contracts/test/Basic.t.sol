@@ -3,6 +3,8 @@ pragma solidity ^0.8.24;
 
 import {ElliquidVault, IERC20} from "../src/ElliquidVault.sol";
 import {LiquidityMarketplace} from "../src/LiquidityMarketplace.sol";
+import {ProjectRegistry} from "../src/ProjectRegistry.sol";
+import {FeeController} from "../src/FeeController.sol";
 
 contract MockERC20 is IERC20 {
     mapping(address => uint256) public balanceOf;
@@ -296,5 +298,85 @@ contract LiquidityMarketplaceTest {
         require(storedId == id, "ID");
         require(storedCreator == creator, "CREATOR");
         require(storedKey == key, "REQUEST_KEY");
+    }
+}
+
+
+contract ProjectRegistryTest {
+    ProjectRegistry registry;
+
+    function setUp() public {
+        registry = new ProjectRegistry(address(this));
+    }
+
+    function testRegisterAndDeactivateProject() public {
+        address project = address(0x1234);
+        registry.registerProject(project, keccak256("metadata"));
+        require(registry.isActiveProject(project), "NOT_ACTIVE");
+
+        registry.setProjectStatus(project, false);
+        require(!registry.isActiveProject(project), "STILL_ACTIVE");
+    }
+
+    function testCannotRegisterSameProjectTwice() public {
+        address project = address(0x1234);
+        registry.registerProject(project, bytes32(0));
+
+        (bool ok,) = address(registry).call(
+            abi.encodeWithSelector(
+                registry.registerProject.selector,
+                project,
+                bytes32(0)
+            )
+        );
+        require(!ok, "DUPLICATE_PROJECT");
+    }
+}
+
+contract FeeControllerTest {
+    FeeController fees;
+    MockERC20 token;
+
+    function setUp() public {
+        token = new MockERC20();
+        fees = new FeeController(address(this), address(0xBEEF));
+        fees.setFeeCaller(address(this), true);
+        token.mint(address(this), 100 ether);
+        token.approve(address(fees), type(uint256).max);
+    }
+
+    function testFeeCapsCannotBeExceeded() public {
+        fees.setFeeRates(2000, 500, 1000);
+        require(fees.performanceFeeBps() == 2000, "PERF");
+        require(fees.managementFeeBps() == 500, "MGMT");
+        require(fees.projectFeeBps() == 1000, "PROJECT");
+
+        (bool ok,) = address(fees).call(
+            abi.encodeWithSelector(
+                fees.setFeeRates.selector,
+                2001,
+                500,
+                1000
+            )
+        );
+        require(!ok, "PERF_CAP");
+    }
+
+    function testOnlyApprovedCallerCanCollect() public {
+        bytes32 referenceId = keccak256("fee-1");
+        fees.collect(address(token), address(this), 10 ether, referenceId);
+        require(token.balanceOf(address(0xBEEF)) == 10 ether, "TREASURY_NOT_PAID");
+
+        fees.setFeeCaller(address(this), false);
+        (bool ok,) = address(fees).call(
+            abi.encodeWithSelector(
+                fees.collect.selector,
+                address(token),
+                address(this),
+                1 ether,
+                referenceId
+            )
+        );
+        require(!ok, "UNAUTHORIZED_COLLECT");
     }
 }
