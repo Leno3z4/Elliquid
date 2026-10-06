@@ -215,13 +215,49 @@ export async function createOnchainRequest(env: Env, requestId: string) {
   const marketplace = asAddress(env.MARKETPLACE_ADDRESS ?? "", "marketplace");
   const account = getExecutionAccount(env);
   const publicClient = getElysiumClient(env);
-  const operator = await publicClient.readContract({
-    address: marketplace,
-    abi: marketplaceAbi,
-    functionName: "operator",
-  });
+  const [operator, minDuration, maxDuration, maxInventory, maxFee] =
+    await Promise.all([
+      publicClient.readContract({
+        address: marketplace,
+        abi: marketplaceAbi,
+        functionName: "operator",
+      }),
+      publicClient.readContract({
+        address: marketplace,
+        abi: marketplaceAbi,
+        functionName: "minDurationSeconds",
+      }),
+      publicClient.readContract({
+        address: marketplace,
+        abi: marketplaceAbi,
+        functionName: "maxDurationSeconds",
+      }),
+      publicClient.readContract({
+        address: marketplace,
+        abi: marketplaceAbi,
+        functionName: "maxInventoryBps",
+      }),
+      publicClient.readContract({
+        address: marketplace,
+        abi: marketplaceAbi,
+        functionName: "maxLiquidityFeeBps",
+      }),
+    ]);
+
   if (operator.toLowerCase() !== account.address.toLowerCase()) {
     throw new Error("MARKETPLACE_OPERATOR_MISMATCH");
+  }
+  if (
+    BigInt(request.durationSeconds) < minDuration ||
+    BigInt(request.durationSeconds) > maxDuration
+  ) {
+    throw new Error("REQUEST_DURATION_EXCEEDS_ONCHAIN_LIMIT");
+  }
+  if (BigInt(request.maxInventoryBps) > maxInventory) {
+    throw new Error("REQUEST_INVENTORY_EXCEEDS_ONCHAIN_LIMIT");
+  }
+  if (BigInt(request.liquidityFeeBps) > maxFee) {
+    throw new Error("REQUEST_FEE_EXCEEDS_ONCHAIN_LIMIT");
   }
 
   const requestKey = actionKey(
