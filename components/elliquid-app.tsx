@@ -17,7 +17,7 @@ type Strategy = {
 
 const strategies: Strategy[] = [
   { name: "Elysium Market Maker", desc: "Managed two-sided liquidity with inventory limits", apy: "18.4%", tvl: "$182.4k", risk: "mid" },
-  { name: "HYPE Carry", desc: "HYPE-denominated liquidity with conservative hedging", apy: "11.8%", tvl: "$96.7k", risk: "low" },
+  { name: "HYPE Liquidity Reserve", desc: "Native HYPE reserve management; no hedge assumed", apy: "—", tvl: "—", risk: "low" },
   { name: "Project Liquidity", desc: "Liquidity-as-a-service for vetted Elysium tokens", apy: "26.1%", tvl: "$74.9k", risk: "high" }
 ];
 
