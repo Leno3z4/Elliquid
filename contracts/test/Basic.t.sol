@@ -264,26 +264,6 @@ contract LiquidityMarketplaceTest {
             ,
             ,
             ,
-            ,
-            bytes32 storedKey
-        ) = market.requests(id);
-
-        require(storedId == id, "ID");
-        require(storedCreator == creator, "CREATOR");
-        require(storedKey == key, "REQUEST_KEY");
-    }
-}        (
-            uint256 storedId,
-            address storedCreator,
-            ,
-            ,
-            ,
-            ,
-            ,
-            ,
-            ,
-            ,
-            ,
             bytes32 storedKey
         ) = market.requests(id);
 
