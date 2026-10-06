@@ -7,7 +7,7 @@ import type { Env } from "./env";
 import { evaluateStrategy } from "./strategy/engine";
 import { authenticateSignedRequest, completeIdempotency, releaseIdempotency, reserveIdempotency } from "./security/auth";
 import { getElysiumClient } from "./chain/elysium";
-import { createOnchainRequest, executeVaultAdapter, fillOnchainRequest, reconcileExecution } from "./execution/service";
+import { createOnchainRequest, executeVaultAdapter, fillOnchainRequest, reconcileExecution, reconcilePendingExecutions } from "./execution/service";
 import type { Hex } from "viem";
 
 const app = new Hono<{ Bindings: Env }>();
