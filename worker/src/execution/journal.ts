@@ -43,6 +43,35 @@ export async function claimExecution(
   return { state: "existing" as const, row };
 }
 
+export async function prepareExecution(
+  env: Env,
+  actionKey: string,
+  args: { fromAddress: string; nonce: number; txHash: string },
+) {
+  const db = drizzle(env.DB);
+  if (!/^0x[0-9a-fA-F]{40}$/.test(args.fromAddress)) throw new Error("INVALID_FROM_ADDRESS");
+  if (!Number.isSafeInteger(args.nonce) || args.nonce < 0) throw new Error("INVALID_NONCE");
+  if (!/^0x[0-9a-fA-F]{64}$/.test(args.txHash)) throw new Error("INVALID_TX_HASH");
+
+  const rows = await db.select().from(executionIntents)
+    .where(eq(executionIntents.actionKey, actionKey))
+    .limit(1);
+  const current = rows[0];
+  if (!current) throw new Error("EXECUTION_INTENT_NOT_FOUND");
+  if (current.status !== "prepared") throw new Error("EXECUTION_ALREADY_SUBMITTED");
+
+  const result = await db.update(executionIntents).set({
+    fromAddress: args.fromAddress.toLowerCase(),
+    nonce: args.nonce,
+    txHash: args.txHash.toLowerCase(),
+    updatedAt: new Date(),
+  }).where(and(
+    eq(executionIntents.actionKey, actionKey),
+    eq(executionIntents.status, "prepared"),
+  ));
+  if (result.rowsAffected !== 1) throw new Error("EXECUTION_PREPARE_RACE");
+}
+
 export async function markExecution(
   env: Env,
   actionKey: string,
@@ -77,10 +106,14 @@ export async function markExecution(
     throw new Error("INVALID_TX_HASH");
   }
 
-  await db.update(executionIntents).set({
+  const result = await db.update(executionIntents).set({
     status,
     txHash: patch?.txHash ?? current.txHash,
     error: patch?.error ?? current.error,
     updatedAt: new Date(),
-  }).where(eq(executionIntents.actionKey, actionKey));
+  }).where(and(
+    eq(executionIntents.actionKey, actionKey),
+    eq(executionIntents.status, current.status),
+  ));
+  if (result.rowsAffected !== 1) throw new Error("EXECUTION_TRANSITION_RACE");
 }
