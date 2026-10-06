@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Script} from "forge-std/Script.sol";
-import {ElliquidVault} from "../src/ElliquidVault.sol";
+import {ElliquidVault, IERC20} from "../src/ElliquidVault.sol";
 import {ElliquidVaultFactory} from "../src/ElliquidVaultFactory.sol";
 import {LiquidityMarketplace} from "../src/LiquidityMarketplace.sol";
 import {StrategyRegistry} from "../src/StrategyRegistry.sol";
@@ -50,7 +50,7 @@ contract DeployElliquid is Script {
 
         address vaultAddress = factory.createVault(
             vaultKey,
-            IERC20Like(asset),
+            IERC20(asset),
             vaultName,
             vaultSymbol,
             owner,
@@ -65,4 +65,3 @@ contract DeployElliquid is Script {
     }
 }
 
-interface IERC20Like {}
