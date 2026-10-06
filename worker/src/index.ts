@@ -11,6 +11,11 @@ import { getElysiumClient } from "./chain/elysium";
 const app = new Hono<{ Bindings: Env }>();
 
 app.use("/api/*", async (c, next) => {
+  if (c.req.method !== "OPTIONS") {
+    const { success } = await c.env.PUBLIC_RATE_LIMITER.limit({ key: new URL(c.req.url).pathname });
+    if (!success) return c.json({ error: "Rate limit exceeded" }, 429);
+  }
+
   const origins = c.env.API_ORIGIN ? c.env.API_ORIGIN.split(",").map((v) => v.trim()) : ["*"];
   return cors({
     origin: origins,
@@ -49,13 +54,13 @@ app.get("/api/chain/status", async (c) => {
 
 app.get("/api/strategies", async (c) => {
   const db = drizzle(c.env.DB);
-  const rows = await db.select().from(strategies).where(eq(strategies.active, true));
+  const rows = await db.select().from(strategies).where(eq(strategies.active, true)).limit(100);
   return c.json({ data: rows });
 });
 
 app.get("/api/projects", async (c) => {
   const db = drizzle(c.env.DB);
-  const rows = await db.select().from(projects).orderBy(desc(projects.createdAt));
+  const rows = await db.select().from(projects).orderBy(desc(projects.createdAt)).limit(100);
   return c.json({ data: rows });
 });
 
@@ -64,14 +69,14 @@ app.get("/api/liquidity-requests", async (c) => {
   const status = c.req.query("status");
   const rows = status
     ? await db.select().from(liquidityRequests).where(eq(liquidityRequests.status, status as "open" | "filled" | "cancelled" | "expired")).orderBy(desc(liquidityRequests.createdAt))
-    : await db.select().from(liquidityRequests).orderBy(desc(liquidityRequests.createdAt));
+    : await db.select().from(liquidityRequests).orderBy(desc(liquidityRequests.createdAt)).limit(100);
 
   return c.json({ data: rows });
 });
 
 app.get("/api/vaults", async (c) => {
   const db = drizzle(c.env.DB);
-  const rows = await db.select().from(vaults).orderBy(desc(vaults.createdAt));
+  const rows = await db.select().from(vaults).orderBy(desc(vaults.createdAt)).limit(100);
   return c.json({ data: rows });
 });
 
@@ -96,6 +101,25 @@ app.post("/api/strategy/evaluate", async (c) => {
     return c.json({ error: "policy and snapshot are required" }, 400);
   }
 
+  const policyValues = [
+    body.policy.targetInventoryBps,
+    body.policy.maxInventoryBps,
+    body.policy.maxDrawdownBps,
+    body.policy.minLiquidityCoverageBps,
+  ];
+  const snapshotValues = [
+    body.snapshot.inventoryBps,
+    body.snapshot.liquidityCoverageBps,
+    body.snapshot.drawdownBps,
+  ];
+  if (
+    [...policyValues, ...snapshotValues].some((value) => !Number.isFinite(value) || value < 0 || value > 10000) ||
+    typeof body.snapshot.marketHealthy !== "boolean" ||
+    typeof body.snapshot.executionFresh !== "boolean"
+  ) {
+    return c.json({ error: "Invalid strategy policy or snapshot bounds" }, 400);
+  }
+
   const decision = evaluateStrategy(body.policy, body.snapshot);
   return c.json({ data: decision });
 });
@@ -113,11 +137,14 @@ app.post("/api/liquidity-requests", async (c) => {
   const auth = await authenticateSignedRequest(c, "create-liquidity-request", body);
   if ("error" in auth) return auth.error;
 
+  const { success: writeAllowed } = await c.env.WRITE_RATE_LIMITER.limit({ key: `wallet:${auth.wallet}` });
+  if (!writeAllowed) return c.json({ error: "Write rate limit exceeded" }, 429);
+
   if (!body.projectId || !body.strategyId || !body.targetQuote) {
     return c.json({ error: "projectId, strategyId and targetQuote are required" }, 400);
   }
 
-  if (!/^\\d+$/.test(body.targetQuote) || body.targetQuote.length > 78) {
+  if (!/^\d+$/.test(body.targetQuote) || body.targetQuote.length > 78 || /^0+$/.test(body.targetQuote)) {
     return c.json({ error: "targetQuote must be a positive integer amount in base units" }, 400);
   }
 
@@ -188,3 +215,9 @@ app.post("/api/liquidity-requests", async (c) => {
 });
 
 export default app;
+
+
+app.onError((error, c) => {
+  console.error("Unhandled API error", error);
+  return c.json({ error: "Internal server error" }, 500);
+});
