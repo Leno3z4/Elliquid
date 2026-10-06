@@ -45,6 +45,18 @@ contract MockAdapter {
     }
 }
 
+contract PauseGuardianActor {
+    function pause(ElliquidVault vault) external {
+        vault.guardianPauseStrategy();
+    }
+
+    function tryUnpause(ElliquidVault vault) external returns (bool ok) {
+        (ok,) = address(vault).call(
+            abi.encodeWithSelector(vault.setStrategyPaused.selector, false)
+        );
+    }
+}
+
 contract ElliquidVaultTest {
     MockERC20 token;
     ElliquidVault vault;
@@ -89,13 +101,9 @@ contract ElliquidVaultTest {
     }
 
     function testGuardianCanPauseStrategyButCannotUnpause() public {
-        address guardian = address(0xCAFE);
-        vault.setPauseGuardian(guardian);
-
-        (bool ok,) = guardian.call(
-            abi.encodeWithSelector(vault.guardianPauseStrategy.selector)
-        );
-        require(ok, "GUARDIAN_PAUSE_FAILED");
+        PauseGuardianActor guardian = new PauseGuardianActor();
+        vault.setPauseGuardian(address(guardian));
+        guardian.pause(vault);
 
         (bool execOk,) = address(vault).call(
             abi.encodeWithSelector(
@@ -108,10 +116,7 @@ contract ElliquidVaultTest {
         );
         require(!execOk, "STRATEGY_NOT_PAUSED");
 
-        (bool unpauseOk,) = guardian.call(
-            abi.encodeWithSelector(vault.setStrategyPaused.selector, false)
-        );
-        require(!unpauseOk, "GUARDIAN_UNPAUSE");
+        require(!guardian.tryUnpause(vault), "GUARDIAN_UNPAUSE");
         vault.setStrategyPaused(false);
     }
 
