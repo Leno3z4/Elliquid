@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-contract MockERC20 {
+import {IERC20} from "../src/ElliquidVault.sol";
+
+contract MockERC20 is IERC20 {
     string public name;
     string public symbol;
     uint8 public immutable decimals = 18;
