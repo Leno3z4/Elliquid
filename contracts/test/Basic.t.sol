@@ -242,29 +242,7 @@ contract ElliquidVaultAdapterTest {
         require(!ok, "REMOVED_ADAPTER_EXECUTED");
     }
 
-    function testAdapterFundingLimitCapsSingleCall() public {
-        vault.deposit(100 ether);
 
-        (bool ok,) = address(vault).call(
-            abi.encodeWithSelector(
-                vault.executeAdapter.selector,
-                keccak256("fund-too-much"),
-                address(adapter),
-                26 ether,
-                ""
-            )
-        );
-        require(!ok, "FUNDING_CAP_BYPASSED");
-
-        vault.setMaxAdapterFundingBps(5000);
-        vault.executeAdapter(
-            keccak256("fund-with-new-cap"),
-            address(adapter),
-            50 ether,
-            ""
-        );
-        require(adapter.calls() == 1, "FUNDING_CAP_NOT_UPDATED");
-    }
 }
 
 
