@@ -92,12 +92,12 @@ The execution engine will be introduced inside the Worker runtime as a separate 
 
 Elliquid is a capital coordination and execution layer — not a promise of yield.
 
-The current UI contains clearly labelled demo/model figures. They must not be presented as real performance. Mainnet deposits require audited contracts, isolated strategy permissions, explicit loss handling, withdrawal controls, transaction idempotency and operational monitoring.
+Mainnet deposits require audited contracts, isolated strategy permissions, explicit loss handling, withdrawal controls, transaction idempotency and operational monitoring.
 
 
 ## Deployment configuration
 
-Core contracts intentionally do not embed Elysium token, router, or owner addresses. Use constructor parameters / deployment environment variables instead. The V2 liquidity adapter takes an immutable, venue-specific V2-compatible AMM router; the Elysium bridge router is not an acceptable value because it is a bridge gateway, not an AMM interface.
+Core contracts intentionally do not embed Elysium token, router, or owner addresses. Use constructor parameters / deployment environment variables instead. The V2 liquidity adapter takes a venue-specific V2-compatible AMM router that can be rotated through a two-step owner-controlled update; the Elysium bridge router is not an acceptable value because it is a bridge gateway, not an AMM interface.
 
 For Worker execution, configure `MARKETPLACE_ADDRESS`, `EXECUTOR_ADDRESS`, and the `EXECUTOR_PRIVATE_KEY` secret in Cloudflare. Keep the executor wallet dedicated to Elliquid so nonce reservation and transaction recovery cannot collide with unrelated transactions.
 
