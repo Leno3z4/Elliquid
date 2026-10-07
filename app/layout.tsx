@@ -3,7 +3,8 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 
 export const metadata: Metadata = {
-  title: "Elliquid — Programmable liquidity for Elysium",
+  title: "Elliquid: Programmable liquidity for Elysium",
+  icons: { icon: "data:," },
   description: "Explore strategy-led liquidity for the Elysium ecosystem, with transparent project data and protocol-level risk controls.",
 };
 

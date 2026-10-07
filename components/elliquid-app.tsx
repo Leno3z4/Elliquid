@@ -1,38 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  ArrowDownRight,
-  ArrowRight,
-  ArrowUpRight,
-  BarChart3,
-  Check,
-  Database,
-  LayoutDashboard,
-  LockKeyhole,
-  ShieldCheck,
-  Wallet,
-} from "lucide-react";
 import { fetchLiquidityRequests, fetchProjects, fetchStrategies, isApiConfigured, type ApiLiquidityRequest, type ApiProject, type ApiStrategy } from "@/lib/api";
 import { useAccount, useConnect, useSwitchChain } from "wagmi";
 import { elysiumTestnet } from "@/lib/wagmi";
 
-const nav = [
-  ["Overview", LayoutDashboard],
-  ["Strategies", BarChart3],
-  ["Projects", Database],
-  ["Risk", ShieldCheck],
-] as const;
+const views = ["Overview", "Strategies", "Projects", "Risk"] as const;
+type View = (typeof views)[number];
 
 export function ElliquidApp() {
-  const [active, setActive] = useState("Overview");
+  const [active, setActive] = useState<View>("Overview");
+  const [menuOpen, setMenuOpen] = useState(false);
   const [strategies, setStrategies] = useState<ApiStrategy[]>([]);
   const [projects, setProjects] = useState<ApiProject[]>([]);
   const [requests, setRequests] = useState<ApiLiquidityRequest[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(() => isApiConfigured());
   const { address: wallet, isConnected, isConnecting } = useAccount();
   const { connect, connectors } = useConnect();
   const { switchChain } = useSwitchChain();
+  const apiConfigured = isApiConfigured();
 
   useEffect(() => {
     if (!isApiConfigured()) return;
@@ -45,9 +32,13 @@ export function ElliquidApp() {
         setProjects(projectRows ?? []);
         setRequests(requestRows ?? []);
         setLoadError(null);
+        setLoading(false);
       })
       .catch(() => {
-        if (!cancelled) setLoadError("Live data could not be loaded.");
+        if (!cancelled) {
+          setLoadError("Marketplace data could not be loaded.");
+          setLoading(false);
+        }
       });
 
     return () => {
@@ -68,175 +59,230 @@ export function ElliquidApp() {
     }
   }
 
-  const unavailable = loadError ?? (isApiConfigured() ? null : "Live API is not configured.");
   const walletLabel = isConnected && wallet
     ? wallet.slice(0, 6) + "…" + wallet.slice(-4)
     : isConnecting ? "Connecting…" : "Connect wallet";
+  const dataState = loading ? "Loading market data" : loadError ? "Data unavailable" : apiConfigured ? "Data loaded" : "API not configured";
+  const dataNote = loading
+    ? "Loading configured strategies, projects and requests."
+    : loadError
+      ? "Check the configured API endpoint before relying on this view."
+      : apiConfigured
+        ? "Counts reflect the records returned by the configured API."
+        : "Marketplace records will appear when the API is configured.";
+
+  function closeMenu() {
+    setMenuOpen(false);
+  }
 
   return (
-    <main className="site-shell">
+    <main className="site-shell" id="home">
       <header className="site-nav">
-        <a className="brand" href="#home" aria-label="Elliquid home">
-          <span className="brand-mark"><span /></span>
-          <span className="brand-name">elliquid<span className="brand-period">.</span></span>
-        </a>
-        <nav className="site-links" aria-label="Main navigation">
-          <a href="#how-it-works">How it works</a>
-          <a href="#transparency">Transparency</a>
-          <a href="#marketplace">Marketplace</a>
+        <a className="wordmark" href="#home" aria-label="Elliquid home" onClick={closeMenu}>elliquid<span>.</span></a>
+        <button
+          className="menu-toggle"
+          type="button"
+          aria-expanded={menuOpen}
+          aria-controls="primary-navigation"
+          onClick={() => setMenuOpen((open) => !open)}
+        >
+          {menuOpen ? "Close" : "Menu"}
+        </button>
+        <nav id="primary-navigation" className={`primary-nav${menuOpen ? " is-open" : ""}`} aria-label="Main navigation">
+          <a href="#what-to-inspect" onClick={closeMenu}>What to inspect</a>
+          <a href="#marketplace" onClick={closeMenu}>Marketplace</a>
+          <a href="#risk-controls-note" onClick={closeMenu}>Risk note</a>
         </nav>
-        <button className="wallet-button" onClick={ensureElysium}>
-          <Wallet size={16} />
-          <span>{walletLabel}</span>
-          <ArrowUpRight size={14} className="wallet-arrow" />
+        <button className="wallet-button" type="button" onClick={ensureElysium}>
+          {walletLabel}
         </button>
       </header>
 
-      <section className="landing-hero" id="home">
-        <div className="hero-copy-block">
-          <div className="eyebrow"><span className="status-dot" /> BUILT FOR ELYSIUM</div>
-          <h1>Liquidity that<br /><em>moves markets.</em></h1>
-          <p className="hero-lede">A programmable liquidity layer connecting capital, Elysium projects and managed strategies — with risk controls designed into every allocation.</p>
+      <section className="hero-section" aria-labelledby="hero-title">
+        <div className="hero-copy">
+          <p className="hero-kicker">ELLIQUID / ELYSIUM</p>
+          <h1 id="hero-title">A market for<br />Elysium <em>liquidity.</em></h1>
+          <p className="hero-description">Elliquid brings projects, liquidity requests and configured strategies into one place, so capital providers can review the terms and controls before acting.</p>
           <div className="hero-actions">
-            <a className="button-primary" href="#marketplace">Explore marketplace <ArrowRight size={17} /></a>
-            <a className="text-link" href="#how-it-works">See how it works <ArrowDownRight size={16} /></a>
+            <a className="button-primary" href="#marketplace">View the marketplace</a>
+            <a className="button-secondary" href="#what-to-inspect">What can I inspect?</a>
           </div>
-          <div className="hero-note"><LockKeyhole size={14} /> Strategy-led execution. On-chain guardrails.</div>
+          <p className="hero-context">Built around the records and controls the marketplace actually exposes.</p>
         </div>
 
-        <div className="hero-art" aria-label="Abstract liquidity flow visualization">
-          <div className="orbit orbit-outer" />
-          <div className="orbit orbit-inner" />
-          <div className="orbit orbit-dash" />
-          <div className="flow-line flow-one" />
-          <div className="flow-line flow-two" />
-          <div className="flow-line flow-three" />
-          <div className="flow-node node-a"><span>01</span><b>CAPITAL</b></div>
-          <div className="flow-node node-b"><span>02</span><b>STRATEGY</b></div>
-          <div className="flow-node node-c"><span>03</span><b>PROJECT</b></div>
-          <div className="flow-core"><div className="core-mark"><span /></div><span>ELLIQUID</span><small>LIQUIDITY LAYER</small></div>
-          <div className="orbit-label label-top">DEPLOY WITH PURPOSE</div>
-          <div className="orbit-label label-bottom">E L Y S I U M · E C O S Y S T E M</div>
+        <aside className="market-note" aria-labelledby="market-note-title" aria-live="polite">
+          <div className="note-topline"><span>MARKET RECORD</span><span className="data-state">{dataState}</span></div>
+          <h2 id="market-note-title">At a glance</h2>
+          <dl className="record-counts">
+            <div><dt>Strategies</dt><dd>{countText(strategies.length, loading, apiConfigured, loadError)}</dd></div>
+            <div><dt>Projects</dt><dd>{countText(projects.length, loading, apiConfigured, loadError)}</dd></div>
+            <div><dt>Liquidity requests</dt><dd>{countText(requests.length, loading, apiConfigured, loadError)}</dd></div>
+          </dl>
+          <p className="note-explanation">{dataNote}</p>
+          <a className="note-link" href="#marketplace">Open marketplace <span aria-hidden="true">↘</span></a>
+        </aside>
+        <div className="hero-index" aria-hidden="true">01 <span /> MARKET STRUCTURE</div>
+      </section>
+
+      <section className="inspection-section" id="what-to-inspect" aria-labelledby="inspection-title">
+        <div className="inspection-heading">
+          <p className="section-label">BEFORE YOU ALLOCATE</p>
+          <h2 id="inspection-title">Terms first.<br /><em>Then a decision.</em></h2>
         </div>
-        <div className="hero-index"><span>01</span><span className="index-rule" /><span>LIQUIDITY, REIMAGINED</span></div>
-      </section>
-
-      <section className="signal-strip" id="transparency">
-        <div className="signal-intro"><span className="signal-kicker">A CLEARER WAY TO DEPLOY</span><p>Capital should move<br />with <em>context.</em></p></div>
-        <div className="signal-item"><span className="signal-icon"><BarChart3 size={18} /></span><div><b>Strategy-led</b><p>Allocation follows configured strategies, not guesswork.</p></div></div>
-        <div className="signal-item"><span className="signal-icon"><ShieldCheck size={18} /></span><div><b>Risk-aware</b><p>Controls are part of the execution path.</p></div></div>
-        <div className="signal-item"><span className="signal-icon"><Database size={18} /></span><div><b>Built for builders</b><p>Connect liquidity with projects across Elysium.</p></div></div>
-      </section>
-
-      <section className="how-section" id="how-it-works">
-        <div className="section-overline">THE ELLIQUID APPROACH <span>01 — 03</span></div>
-        <div className="how-heading"><h2>From idle capital<br />to <em>useful liquidity.</em></h2><p>One connected marketplace. A transparent path from liquidity request to strategy-guided execution.</p></div>
-        <div className="steps-grid">
-          <article className="step-card"><span className="step-no">01</span><div className="step-icon"><Wallet size={20} /></div><h3>Connect</h3><p>Connect your wallet to the Elysium ecosystem and explore available opportunities.</p><span className="step-foot">YOUR WALLET, YOUR CONTROL</span></article>
-          <article className="step-card"><span className="step-no">02</span><div className="step-icon"><BarChart3 size={20} /></div><h3>Discover</h3><p>Review live projects, liquidity requests and the strategies configured for each market.</p><span className="step-foot">CLEAR BEFORE COMMITMENT</span></article>
-          <article className="step-card"><span className="step-no">03</span><div className="step-icon"><ShieldCheck size={20} /></div><h3>Deploy</h3><p>Execution is governed by strategy permissions and protocol-level risk controls.</p><span className="step-foot">GUARDED BY DESIGN</span></article>
+        <div className="inspection-copy">
+          <p className="inspection-intro">The marketplace is organized around the information that shapes a liquidity decision, not a headline yield.</p>
+          <dl className="inspection-list">
+            <div><dt>Request terms</dt><dd>Review target quote, liquidity fee and duration on each recorded request.</dd></div>
+            <div><dt>Project record</dt><dd>See the project's base and quote tokens, along with its verification state.</dd></div>
+            <div><dt>Strategy posture</dt><dd>Read each configured strategy's description and stated risk category.</dd></div>
+          </dl>
         </div>
       </section>
 
-      <section className="market-section" id="marketplace">
+      <section className="market-section" id="marketplace" aria-labelledby="marketplace-title">
         <div className="market-heading">
-          <div><div className="section-overline">THE MARKETPLACE <span>LIVE VIEW</span></div><h2>See the <em>landscape.</em></h2></div>
-          <p>Explore configured strategies, projects and liquidity requests. Connect to Elysium to take part.</p>
+          <div>
+            <p className="section-label">THE ELLIQUID MARKETPLACE</p>
+            <h2 id="marketplace-title">Read the <em>market.</em></h2>
+          </div>
+          <p>Browse the configured records. Connect your wallet when you are ready to use the Elysium network.</p>
         </div>
-        <div className="app-shell">
-          <aside className="sidebar">
-            <div className="side-label">WORKSPACE</div>
-            <nav className="nav" aria-label="Marketplace views">
-              {nav.map(([label, Icon]) => (
-                <button key={label} className={active === label ? "active" : ""} onClick={() => setActive(label)} aria-current={active === label ? "page" : undefined}>
-                  <Icon size={16} /><span className="nav-label">{label}</span>{active === label && <span className="nav-indicator" />}
+
+        <div className="market-frame">
+          <div className="market-toolbar">
+            <nav className="market-tabs" aria-label="Marketplace views">
+              {views.map((view) => (
+                <button
+                  key={view}
+                  type="button"
+                  className={active === view ? "selected" : ""}
+                  aria-pressed={active === view}
+                  onClick={() => setActive(view)}
+                >
+                  {view}
                 </button>
               ))}
             </nav>
-            <div className="sidebar-foot"><span className="status-dot" /> ELYSIUM TESTNET</div>
-          </aside>
+            <span className="network-label">ELYSIUM TESTNET</span>
+          </div>
 
-          <div className="market-main">
-            <header className="market-topbar">
-              <div><span className="breadcrumb">MARKETPLACE</span><span className="breadcrumb-sep">/</span><span>{active}</span></div>
-              <button className="market-wallet" onClick={ensureElysium}>{walletLabel}</button>
-            </header>
-            <div className="market-content">
-              <div className="dashboard-heading">
-                <div><span className="dashboard-eyebrow">ELLIQUID · ELYSIUM</span><h3>{active === "Overview" ? "Market overview" : active}</h3><p>Programmable liquidity, with the context to move confidently.</p></div>
-                <span className="network-pill"><span className="status-dot" /> Elysium</span>
-              </div>
-
-              {active === "Overview" && (
-                <div className="overview-grid">
-                  <section className="card section">
-                    <div className="section-head"><div><div className="section-title">Strategies</div><div className="section-meta">Configured for the marketplace</div></div><span className="card-count">{strategies.length.toString().padStart(2, "0")}</span></div>
-                    <LiveStrategies rows={strategies} empty={unavailable ?? "No active strategies found."} />
+          <div className="market-content">
+            {active === "Overview" && (
+              <>
+                <div className="view-heading"><div><p className="section-label">OVERVIEW</p><h3>Current records</h3></div><span className="view-count">{dataState}</span></div>
+                <div className="overview-lists">
+                  <section className="dataset" aria-labelledby="overview-strategies">
+                    <div className="dataset-heading"><h4 id="overview-strategies">Strategies</h4><span>{countText(strategies.length, loading, apiConfigured, loadError)}</span></div>
+                    <LiveStrategies rows={strategies.slice(0, 3)} loading={loading} error={loadError} configured={apiConfigured} />
                   </section>
-                  <section className="card section">
-                    <div className="section-head"><div><div className="section-title">Liquidity requests</div><div className="section-meta">Requests recorded by the API</div></div><span className="card-count">{requests.length.toString().padStart(2, "0")}</span></div>
-                    <LiveRequests rows={requests} projects={projects} empty={unavailable ?? "No liquidity requests found."} />
+                  <section className="dataset" aria-labelledby="overview-requests">
+                    <div className="dataset-heading"><h4 id="overview-requests">Liquidity requests</h4><span>{countText(requests.length, loading, apiConfigured, loadError)}</span></div>
+                    <LiveRequests rows={requests.slice(0, 3)} projects={projects} loading={loading} error={loadError} configured={apiConfigured} />
                   </section>
                 </div>
-              )}
+              </>
+            )}
 
-              {active === "Strategies" && (
-                <section className="card section"><div className="section-head"><div><div className="section-title">Strategies</div><div className="section-meta">Configured for the marketplace</div></div></div><LiveStrategies rows={strategies} empty={unavailable ?? "No active strategies found."} /></section>
-              )}
+            {active === "Strategies" && (
+              <section className="dataset dataset-full" aria-labelledby="strategies-title">
+                <div className="view-heading"><div><p className="section-label">CONFIGURATION</p><h3 id="strategies-title">Strategies</h3></div><span className="view-count">{countText(strategies.length, loading, apiConfigured, loadError)}</span></div>
+                <LiveStrategies rows={strategies} loading={loading} error={loadError} configured={apiConfigured} />
+              </section>
+            )}
 
-              {active === "Projects" && (
-                <section className="card section"><div className="section-head"><div><div className="section-title">Projects</div><div className="section-meta">Projects currently recorded by the API</div></div><span className="card-count">{projects.length.toString().padStart(2, "0")}</span></div>
-                  <div className="data-list">{projects.length ? projects.map((project) => (
-                    <div className="data-row" key={project.id}><div><div className="data-name">{project.name}</div><div className="data-sub">{project.baseToken} / {project.quoteToken}</div></div><div className={"risk " + (project.verified ? "low" : "mid")}>{project.verified ? <><Check size={12} /> verified</> : "unverified"}</div></div>
-                  )) : <div className="empty-state"><span className="empty-symbol"><Database size={18} /></span><b>{unavailable ?? "No projects found."}</b><span>Projects will appear here when available.</span></div>}</div>
-                </section>
-              )}
+            {active === "Projects" && (
+              <section className="dataset dataset-full" aria-labelledby="projects-title">
+                <div className="view-heading"><div><p className="section-label">PROJECT RECORDS</p><h3 id="projects-title">Projects</h3></div><span className="view-count">{countText(projects.length, loading, apiConfigured, loadError)}</span></div>
+                <LiveProjects rows={projects} loading={loading} error={loadError} configured={apiConfigured} />
+              </section>
+            )}
 
-              {active === "Risk" && (
-                <section className="card section"><div className="section-head"><div><div className="section-title">Risk controls</div><div className="section-meta">Enforced by the strategy and contract layers</div></div><span className="risk-overview"><ShieldCheck size={14} /> PROTOCOL CONTROLS</span></div>
-                  <div className="data-list">
-                    <div className="data-row"><span className="control-check"><Check size={13} /></span><div><div className="data-name">Strategy execution</div><div className="data-sub">Controlled by the configured executor and emergency pause guardian.</div></div></div>
-                    <div className="data-row"><span className="control-check"><Check size={13} /></span><div><div className="data-name">Adapter access</div><div className="data-sub">Only approved adapters can receive vault execution.</div></div></div>
-                    <div className="data-row"><span className="control-check"><Check size={13} /></span><div><div className="data-name">Loss controls</div><div className="data-sub">Vault loss limits and adapter funding caps are enforced on-chain.</div></div></div>
-                  </div>
-                </section>
-              )}
-              <div className="market-footnote"><LockKeyhole size={13} /> Data reflects configured API records. Nothing here represents a guaranteed return.</div>
-            </div>
+            {active === "Risk" && (
+              <section className="risk-view" id="risk-controls" aria-labelledby="risk-title">
+                <div className="view-heading"><div><p className="section-label">PROTOCOL CONTROLS</p><h3 id="risk-title">Execution guardrails</h3></div></div>
+                <p className="risk-intro">These controls are enforced in the strategy and contract layers. They describe protocol behavior, not a guarantee against loss.</p>
+                <dl className="risk-list">
+                  <div><dt>Executor and pause</dt><dd>Strategy execution is controlled by the configured executor and emergency pause guardian.</dd></div>
+                  <div><dt>Approved adapters</dt><dd>Only approved adapters can receive vault execution.</dd></div>
+                  <div><dt>Loss and funding limits</dt><dd>Vault loss limits and adapter funding caps are enforced on-chain.</dd></div>
+                </dl>
+              </section>
+            )}
           </div>
         </div>
+        <p className="market-disclaimer" id="risk-controls-note">Configured records are not investment advice. Review each request and the relevant on-chain details before interacting.</p>
       </section>
 
-      <footer className="site-footer"><a className="brand footer-brand" href="#home"><span className="brand-mark"><span /></span><span className="brand-name">elliquid<span className="brand-period">.</span></span></a><span>Liquidity for the Elysium ecosystem.</span><span className="footer-right">PROGRAMMABLE LIQUIDITY <ArrowUpRight size={13} /></span></footer>
+      <footer className="site-footer">
+        <a className="wordmark" href="#home">elliquid<span>.</span></a>
+        <p>Liquidity records for the Elysium ecosystem.</p>
+        <a href="#risk-controls-note">Risk note</a>
+      </footer>
     </main>
   );
 }
 
-function LiveStrategies({ rows, empty }: { rows: ApiStrategy[]; empty: string }) {
+function countText(count: number, loading: boolean, configured: boolean, error: string | null) {
+  if (loading) return "Loading";
+  if (error) return "Unavailable";
+  if (!configured) return "Not connected";
+  return count.toLocaleString("en-US");
+}
+
+function EmptyState({ loading, error, configured, label }: { loading: boolean; error: string | null; configured: boolean; label: string }) {
+  if (loading) {
+    return <p className="state-message" role="status">Loading {label} from the configured API.</p>;
+  }
+  if (error) {
+    return <p className="state-message state-error" role="alert">{error} Check the configured API endpoint and try again later.</p>;
+  }
+  if (!configured) {
+    return <p className="state-message">The API is not configured. {label} will appear here when a data source is connected.</p>;
+  }
+  return <p className="state-message">No {label} were returned by the configured API.</p>;
+}
+
+function LiveStrategies({ rows, loading, error, configured }: { rows: ApiStrategy[]; loading: boolean; error: string | null; configured: boolean }) {
+  if (!rows.length) return <EmptyState loading={loading} error={error} configured={configured} label="strategies" />;
   return (
-    <div className="data-list">
-      {rows.length ? rows.map((strategy) => (
-        <div className="data-row" key={strategy.id}>
-          <div><div className="data-name">{strategy.name}</div><div className="data-sub">{strategy.description}</div></div>
-          <div className={"risk " + strategy.risk}>{strategy.risk}</div>
-        </div>
-      )) : <div className="empty-state"><span className="empty-symbol"><BarChart3 size={18} /></span><b>{empty}</b><span>When configured, strategy details will appear here.</span></div>}
+    <div className="record-list">
+      {rows.map((strategy) => (
+        <article className="record-row" key={strategy.id}>
+          <div className="record-main"><h5>{strategy.name}</h5><p>{strategy.description}</p></div>
+          <span className={`risk-level risk-${strategy.risk.toLowerCase()}`}>{strategy.risk}</span>
+        </article>
+      ))}
     </div>
   );
 }
 
-function LiveRequests({ rows, projects, empty }: { rows: ApiLiquidityRequest[]; projects: ApiProject[]; empty: string }) {
+function LiveRequests({ rows, projects, loading, error, configured }: { rows: ApiLiquidityRequest[]; projects: ApiProject[]; loading: boolean; error: string | null; configured: boolean }) {
+  if (!rows.length) return <EmptyState loading={loading} error={error} configured={configured} label="liquidity requests" />;
   return (
-    <div className="data-list">
-      {rows.length ? rows.map((request) => {
+    <div className="record-list">
+      {rows.map((request) => {
         const project = projects.find((item) => item.id === request.projectId);
         return (
-          <div className="data-row" key={request.id}>
-            <div><div className="data-name">{project?.name ?? request.projectId}</div><div className="data-sub">Target {request.targetQuote} · fee {request.liquidityFeeBps} bps · {request.durationSeconds}s</div></div>
-            <div className={"risk " + (request.status === "open" ? "low" : "mid")}>{request.status}</div>
-          </div>
+          <article className="record-row" key={request.id}>
+            <div className="record-main"><h5>{project?.name ?? request.projectId}</h5><p>Target {request.targetQuote} / fee {request.liquidityFeeBps} bps / {request.durationSeconds} seconds</p></div>
+            <span className={`risk-level ${request.status === "open" ? "risk-open" : "risk-closed"}`}>{request.status}</span>
+          </article>
         );
-      }) : <div className="empty-state"><span className="empty-symbol"><Database size={18} /></span><b>{empty}</b><span>Request activity will appear here when available.</span></div>}
+      })}
+    </div>
+  );
+}
+
+function LiveProjects({ rows, loading, error, configured }: { rows: ApiProject[]; loading: boolean; error: string | null; configured: boolean }) {
+  if (!rows.length) return <EmptyState loading={loading} error={error} configured={configured} label="projects" />;
+  return (
+    <div className="record-list">
+      {rows.map((project) => (
+        <article className="record-row" key={project.id}>
+          <div className="record-main"><h5>{project.name}</h5><p>{project.baseToken} / {project.quoteToken}</p></div>
+          <span className={`risk-level ${project.verified ? "risk-open" : "risk-closed"}`}>{project.verified ? "Verified" : "Unverified"}</span>
+        </article>
+      ))}
     </div>
   );
 }
