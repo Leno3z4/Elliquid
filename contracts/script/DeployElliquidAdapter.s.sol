@@ -4,6 +4,10 @@ pragma solidity ^0.8.24;
 import {Script} from "forge-std/Script.sol";
 import {V2SingleSidedLiquidityAdapter} from "../src/V2SingleSidedLiquidityAdapter.sol";
 
+interface IEnvCheatcode {
+    function envString(string calldata key) external returns (string memory);
+}
+
 /// @notice Deploys the generic V2-compatible Elliquid liquidity adapter.
 /// @dev Required env: OWNER, AMM_ROUTER. Provide the deployer key/account to Foundry
 ///      through its normal broadcast configuration (for example --private-key).
@@ -22,8 +26,12 @@ contract DeployElliquidAdapter is Script {
         vm.stopBroadcast();
     }
 
+    function _envString(string memory key) internal returns (string memory) {
+        return IEnvCheatcode(address(vm)).envString(key);
+    }
+
     function _envAddress(string memory key) internal returns (address) {
-        bytes memory raw = bytes(vm.envString(key));
+        bytes memory raw = bytes(_envString(key));
         require(raw.length == 42, "ADDRESS_LENGTH");
         require(raw[0] == 0x30, "ADDRESS_PREFIX");
         require(raw[1] == 0x78 || raw[1] == 0x58, "ADDRESS_HEX_PREFIX");
