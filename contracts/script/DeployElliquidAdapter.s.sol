@@ -1,19 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Script} from "forge-std/Script.sol";
 import {V2SingleSidedLiquidityAdapter} from "../src/V2SingleSidedLiquidityAdapter.sol";
 
 interface IEnvCheatcode {
     function envString(string calldata key) external returns (string memory);
 }
 
-/// @notice Deploys the generic V2-compatible Elliquid liquidity adapter.
+/// @notice Foundry deployment script that avoids forge-std imports so Remix can compile this workspace without forge-std warnings.
 /// @dev Required env: OWNER, AMM_ROUTER. Provide the deployer key/account to Foundry
 ///      through its normal broadcast configuration (for example --private-key).
 ///      AMM_ROUTER must be a verified venue-specific V2-compatible AMM router.
 ///      Do NOT use an Elysium bridge router.
-contract DeployElliquidAdapter is Script {
+contract DeployElliquidAdapter {
+    interface IVm {
+        function envString(string calldata key) external returns (string memory);
+        function startBroadcast() external;
+        function stopBroadcast() external;
+    }
+
+    address internal constant VM_ADDRESS = address(
+        uint160(uint256(keccak256("hevm cheat code")))
+    );
+    IVm internal constant vm = IVm(VM_ADDRESS);
+
     function run() external returns (V2SingleSidedLiquidityAdapter adapter) {
         address owner = _envAddress("OWNER");
         address ammRouter = _envAddress("AMM_ROUTER");
