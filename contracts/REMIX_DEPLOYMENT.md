@@ -39,8 +39,7 @@ Constructor:
 | _owner | Governance/owner wallet |
 | _strategyExecutor | Initial dedicated keeper/executor wallet |
 
-The constructor initially sets strategyExecutor = owner.
-
+The vault constructor sets the initial executor explicitly.
 Immediately after deployment, record the vault address.
 
 ### 3. Configure the marketplace and vault
@@ -144,7 +143,7 @@ For Cloudflare, configure:
 - EXECUTOR_ADDRESS as a normal configuration value
 - MARKETPLACE_ADDRESS as a normal configuration value
 
-The private key is only used to construct/sign the transaction in the Worker runtime.
+The private key is only used to construct/sign transactions in the authorized deployment or Worker runtime.
 
 ## Preflight checklist
 
