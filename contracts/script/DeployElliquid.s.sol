@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {ElliquidVault, IERC20} from "../src/ElliquidVault.sol";
 import {ElliquidVaultFactory} from "../src/ElliquidVaultFactory.sol";
 import {LiquidityMarketplace} from "../src/LiquidityMarketplace.sol";
 import {StrategyRegistry} from "../src/StrategyRegistry.sol";
 import {ProjectRegistry} from "../src/ProjectRegistry.sol";
 import {FeeController} from "../src/FeeController.sol";
 
-/// @notice Foundry deployment script that avoids forge-std imports so Remix can compile this workspace without forge-std warnings.
-/// @dev Required env: OWNER, ASSET, VAULT_NAME, VAULT_SYMBOL, VAULT_KEY, EXECUTOR, PAUSE_GUARDIAN, TREASURY.
-///      Provide the deployer key/account to Foundry through its normal broadcast configuration.
+/// @notice Deploys the Elliquid control-plane contracts only.
+/// @dev Vault creation is intentionally separate so this deployment script does not embed
+///      the entire protocol's creation bytecode and does not trigger the EIP-170 script-size warning.
 interface IElliquidScriptVm {
     function envString(string calldata key) external returns (string memory);
     function startBroadcast() external;
@@ -26,7 +25,6 @@ contract DeployElliquid {
     function run()
         external
         returns (
-            ElliquidVault vault,
             ElliquidVaultFactory factory,
             LiquidityMarketplace marketplace,
             StrategyRegistry strategies,
@@ -35,20 +33,10 @@ contract DeployElliquid {
         )
     {
         address owner = _envAddress("OWNER");
-        address asset = _envAddress("ASSET");
-        string memory vaultName = _envString("VAULT_NAME");
-        string memory vaultSymbol = _envString("VAULT_SYMBOL");
-        bytes32 vaultKey = keccak256(bytes(_envString("VAULT_KEY")));
-        address executor = _envAddress("EXECUTOR");
-        address pauseGuardian = _envAddress("PAUSE_GUARDIAN");
         address treasury = _envAddress("TREASURY");
 
         require(owner != address(0), "OWNER_ZERO");
-        require(asset != address(0), "ASSET_ZERO");
-        require(executor != address(0), "EXECUTOR_ZERO");
-        require(pauseGuardian != address(0), "GUARDIAN_ZERO");
         require(treasury != address(0), "TREASURY_ZERO");
-        require(vaultKey != bytes32(0), "VAULT_KEY_ZERO");
 
         vm.startBroadcast();
 
@@ -58,30 +46,11 @@ contract DeployElliquid {
         projects = new ProjectRegistry(owner);
         fees = new FeeController(owner, treasury);
 
-        address vaultAddress = factory.createVault(
-            vaultKey,
-            IERC20(asset),
-            vaultName,
-            vaultSymbol,
-            owner,
-            executor
-        );
-        vault = ElliquidVault(vaultAddress);
-
-        vault.startPauseGuardianUpdate(pauseGuardian);
-        vault.acceptPauseGuardianUpdate();
-        marketplace.startOperatorUpdate(executor);
-        marketplace.acceptOperatorUpdate();
-
         vm.stopBroadcast();
     }
 
-    function _envString(string memory key) internal returns (string memory) {
-        return vm.envString(key);
-    }
-
     function _envAddress(string memory key) internal returns (address) {
-        bytes memory raw = bytes(_envString(key));
+        bytes memory raw = bytes(vm.envString(key));
         require(raw.length == 42, "ADDRESS_LENGTH");
         require(raw[0] == 0x30, "ADDRESS_PREFIX");
         require(raw[1] == 0x78 || raw[1] == 0x58, "ADDRESS_HEX_PREFIX");
