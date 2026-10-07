@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Script} from "forge-std/Script.sol";
 import {ElliquidVault, IERC20} from "../src/ElliquidVault.sol";
 import {ElliquidVaultFactory} from "../src/ElliquidVaultFactory.sol";
 import {LiquidityMarketplace} from "../src/LiquidityMarketplace.sol";
@@ -13,10 +12,21 @@ interface IEnvCheatcode {
     function envString(string calldata key) external returns (string memory);
 }
 
-/// @notice Deploys the Elliquid MVP governance/control plane without embedding addresses or keys.
+/// @notice Foundry deployment script that avoids forge-std imports so Remix can compile this workspace without forge-std warnings.
 /// @dev Required env: OWNER, ASSET, VAULT_NAME, VAULT_SYMBOL, VAULT_KEY, EXECUTOR, PAUSE_GUARDIAN, TREASURY.
 ///      Provide the deployer key/account to Foundry through its normal broadcast configuration.
-contract DeployElliquid is Script {
+contract DeployElliquid {
+    interface IVm {
+        function envString(string calldata key) external returns (string memory);
+        function startBroadcast() external;
+        function stopBroadcast() external;
+    }
+
+    address internal constant VM_ADDRESS = address(
+        uint160(uint256(keccak256("hevm cheat code")))
+    );
+    IVm internal constant vm = IVm(VM_ADDRESS);
+
     function run()
         external
         returns (
