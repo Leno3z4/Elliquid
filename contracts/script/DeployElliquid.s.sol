@@ -10,7 +10,7 @@ import {ProjectRegistry} from "../src/ProjectRegistry.sol";
 import {FeeController} from "../src/FeeController.sol";
 
 /// @notice Deploys the Elliquid MVP governance/control plane without embedding addresses or keys.
-/// @dev Required env: PRIVATE_KEY, OWNER, ASSET, VAULT_NAME, VAULT_SYMBOL, VAULT_KEY, EXECUTOR, PAUSE_GUARDIAN, TREASURY.
+/// @dev Required env: OWNER, ASSET, VAULT_NAME, VAULT_SYMBOL, VAULT_KEY, EXECUTOR, PAUSE_GUARDIAN, TREASURY.\n///      Provide the deployer key/account to Foundry through its normal broadcast configuration.
 contract DeployElliquid is Script {
     function run()
         external
@@ -23,12 +23,11 @@ contract DeployElliquid is Script {
             FeeController fees
         )
     {
-        uint256 privateKey = vm.envUint("PRIVATE_KEY");
         address owner = vm.envAddress("OWNER");
         address asset = vm.envAddress("ASSET");
         string memory vaultName = vm.envString("VAULT_NAME");
         string memory vaultSymbol = vm.envString("VAULT_SYMBOL");
-        bytes32 vaultKey = vm.envBytes32("VAULT_KEY");
+        bytes32 vaultKey = keccak256(bytes(vm.envString("VAULT_KEY")));
         address executor = vm.envAddress("EXECUTOR");
         address pauseGuardian = vm.envAddress("PAUSE_GUARDIAN");
         address treasury = vm.envAddress("TREASURY");
@@ -40,7 +39,7 @@ contract DeployElliquid is Script {
         require(treasury != address(0), "TREASURY_ZERO");
         require(vaultKey != bytes32(0), "VAULT_KEY_ZERO");
 
-        vm.startBroadcast(privateKey);
+        vm.startBroadcast();
 
         factory = new ElliquidVaultFactory(owner);
         marketplace = new LiquidityMarketplace(owner);
