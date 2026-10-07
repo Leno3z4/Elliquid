@@ -137,22 +137,25 @@ The goal is that a changed venue, keeper, guardian, treasury, strategy policy or
 
 ## Foundry deployment scripts
 
-The old monolithic `DeployElliquid.s.sol` script was removed because bundling the creation bytecode for multiple protocol contracts into one script can itself exceed the EIP-170 contract-size limit in Remix.
+The deployment flow is intentionally kept to three scripts so it is practical to use while avoiding a monolithic script that exceeds the EIP-170 contract-size limit in Remix.
 
-The deployment scripts are now split:
+1. `DeployElliquid.s.sol` — deploys the four non-vault control-plane contracts:
+   - `LiquidityMarketplace`
+   - `StrategyRegistry`
+   - `ProjectRegistry`
+   - `FeeController`
+   Requires `OWNER` and `TREASURY`.
 
-1. `DeployElliquidFactory.s.sol` — deploys `ElliquidVaultFactory`; requires `OWNER`.
-2. `DeployLiquidityMarketplace.s.sol` — deploys `LiquidityMarketplace`; requires `OWNER`.
-3. `DeployStrategyRegistry.s.sol` — deploys `StrategyRegistry`; requires `OWNER`.
-4. `DeployProjectRegistry.s.sol` — deploys `ProjectRegistry`; requires `OWNER`.
-5. `DeployFeeController.s.sol` — deploys `FeeController`; requires `OWNER` and `TREASURY`.
-6. `DeployElliquidVault.s.sol` — creates a vault through an already deployed factory and configures the marketplace/guardian; requires the deployed `FACTORY` and `MARKETPLACE` plus `OWNER`, `ASSET`, `VAULT_NAME`, `VAULT_SYMBOL`, `VAULT_KEY`, `EXECUTOR`, and `PAUSE_GUARDIAN`.
-7. `DeployElliquidAdapter.s.sol` — deploys the adapter only after a verified V2-compatible AMM router is available.
+2. `DeployElliquidFactoryVault.s.sol` — deploys `ElliquidVaultFactory`, creates the vault, installs the pause guardian, and sets the marketplace operator.
+   Requires `OWNER`, `MARKETPLACE`, `ASSET`, `EXECUTOR`, `PAUSE_GUARDIAN`, `VAULT_NAME`, `VAULT_SYMBOL`, and `VAULT_KEY`.
 
-Each script intentionally deploys at most one new production contract, so no script should need to contain the entire protocol's creation bytecode.
+3. `DeployElliquidAdapter.s.sol` — deploys the generic V2-compatible adapter.
+   Requires `OWNER` and `AMM_ROUTER`.
 
-For Remix, ignore these scripts and deploy the contracts from `contracts/src` according to the order above.
+Run the core control-plane script first, then the factory/vault script using the resulting marketplace address, then the adapter only after a verified V2-compatible AMM router is available.
 
+For Remix, the production contracts under `contracts/src` can still be deployed directly using the deployment order above. The Foundry scripts are optional automation helpers.
+   
 ## Worker secrets
 
 Do not place the executor private key in D1, GitHub, .dev.vars.example, or source code.
