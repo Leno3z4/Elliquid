@@ -9,6 +9,10 @@ import {StrategyRegistry} from "../src/StrategyRegistry.sol";
 import {ProjectRegistry} from "../src/ProjectRegistry.sol";
 import {FeeController} from "../src/FeeController.sol";
 
+interface IEnvCheatcode {
+    function envString(string calldata key) external returns (string memory);
+}
+
 /// @notice Deploys the Elliquid MVP governance/control plane without embedding addresses or keys.
 /// @dev Required env: OWNER, ASSET, VAULT_NAME, VAULT_SYMBOL, VAULT_KEY, EXECUTOR, PAUSE_GUARDIAN, TREASURY.
 ///      Provide the deployer key/account to Foundry through its normal broadcast configuration.
@@ -26,9 +30,9 @@ contract DeployElliquid is Script {
     {
         address owner = _envAddress("OWNER");
         address asset = _envAddress("ASSET");
-        string memory vaultName = vm.envString("VAULT_NAME");
-        string memory vaultSymbol = vm.envString("VAULT_SYMBOL");
-        bytes32 vaultKey = keccak256(bytes(vm.envString("VAULT_KEY")));
+        string memory vaultName = _envString("VAULT_NAME");
+        string memory vaultSymbol = _envString("VAULT_SYMBOL");
+        bytes32 vaultKey = keccak256(bytes(_envString("VAULT_KEY")));
         address executor = _envAddress("EXECUTOR");
         address pauseGuardian = _envAddress("PAUSE_GUARDIAN");
         address treasury = _envAddress("TREASURY");
@@ -66,8 +70,12 @@ contract DeployElliquid is Script {
         vm.stopBroadcast();
     }
 
+    function _envString(string memory key) internal returns (string memory) {
+        return IEnvCheatcode(address(vm)).envString(key);
+    }
+
     function _envAddress(string memory key) internal returns (address) {
-        bytes memory raw = bytes(vm.envString(key));
+        bytes memory raw = bytes(_envString(key));
         require(raw.length == 42, "ADDRESS_LENGTH");
         require(raw[0] == 0x30, "ADDRESS_PREFIX");
         require(raw[1] == 0x78 || raw[1] == 0x58, "ADDRESS_HEX_PREFIX");
