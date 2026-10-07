@@ -137,11 +137,19 @@ The goal is that a changed venue, keeper, guardian, treasury, strategy policy or
 
 ## Foundry deployment scripts
 
-The monolithic deployment flow is intentionally split to avoid embedding the creation bytecode of the entire protocol into one script contract.
+The old monolithic `DeployElliquid.s.sol` script was removed because bundling the creation bytecode for multiple protocol contracts into one script can itself exceed the EIP-170 contract-size limit in Remix.
 
-1. Run `DeployElliquid.s.sol` to deploy the control-plane contracts. It requires `OWNER` and `TREASURY`.
-2. Run `DeployElliquidVault.s.sol` using the deployed `FACTORY` and `MARKETPLACE` addresses plus `OWNER`, `ASSET`, `VAULT_NAME`, `VAULT_SYMBOL`, `VAULT_KEY`, `EXECUTOR`, and `PAUSE_GUARDIAN`.
-3. Run `DeployElliquidAdapter.s.sol` only after a verified V2-compatible AMM router is available.
+The deployment scripts are now split:
+
+1. `DeployElliquidFactory.s.sol` — deploys `ElliquidVaultFactory`; requires `OWNER`.
+2. `DeployLiquidityMarketplace.s.sol` — deploys `LiquidityMarketplace`; requires `OWNER`.
+3. `DeployStrategyRegistry.s.sol` — deploys `StrategyRegistry`; requires `OWNER`.
+4. `DeployProjectRegistry.s.sol` — deploys `ProjectRegistry`; requires `OWNER`.
+5. `DeployFeeController.s.sol` — deploys `FeeController`; requires `OWNER` and `TREASURY`.
+6. `DeployElliquidVault.s.sol` — creates a vault through an already deployed factory and configures the marketplace/guardian; requires the deployed `FACTORY` and `MARKETPLACE` plus `OWNER`, `ASSET`, `VAULT_NAME`, `VAULT_SYMBOL`, `VAULT_KEY`, `EXECUTOR`, and `PAUSE_GUARDIAN`.
+7. `DeployElliquidAdapter.s.sol` — deploys the adapter only after a verified V2-compatible AMM router is available.
+
+Each script intentionally deploys at most one new production contract, so no script should need to contain the entire protocol's creation bytecode.
 
 For Remix, ignore these scripts and deploy the contracts from `contracts/src` according to the order above.
 
