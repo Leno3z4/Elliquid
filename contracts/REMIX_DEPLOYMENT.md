@@ -15,6 +15,8 @@ HYPE is native gas on Elysium. It is not the ERC-20 asset constructor argument f
 
 ## Deployment order in Remix
 
+Remix should deploy the production contracts in `contracts/src` directly. The Foundry scripts under `contracts/script` are optional automation helpers and are not required for Remix deployment.
+
 ### 1. Deploy control-plane contracts
 
 Deploy these with the same governance owner:
@@ -132,6 +134,16 @@ The design intentionally separates values that may legitimately change from acco
 | Safety ceilings / protocol constants | Permanent in code unless a future audited contract version intentionally changes them. |
 
 The goal is that a changed venue, keeper, guardian, treasury, strategy policy or marketplace configuration does not require redeploying the whole protocol. The exceptions are deliberate safety invariants, especially the vault asset.
+
+## Foundry deployment scripts
+
+The monolithic deployment flow is intentionally split to avoid embedding the creation bytecode of the entire protocol into one script contract.
+
+1. Run `DeployElliquid.s.sol` to deploy the control-plane contracts. It requires `OWNER` and `TREASURY`.
+2. Run `DeployElliquidVault.s.sol` using the deployed `FACTORY` and `MARKETPLACE` addresses plus `OWNER`, `ASSET`, `VAULT_NAME`, `VAULT_SYMBOL`, `VAULT_KEY`, `EXECUTOR`, and `PAUSE_GUARDIAN`.
+3. Run `DeployElliquidAdapter.s.sol` only after a verified V2-compatible AMM router is available.
+
+For Remix, ignore these scripts and deploy the contracts from `contracts/src` according to the order above.
 
 ## Worker secrets
 
