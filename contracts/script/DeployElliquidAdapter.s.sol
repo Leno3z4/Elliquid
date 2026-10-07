@@ -3,26 +3,22 @@ pragma solidity ^0.8.24;
 
 import {V2SingleSidedLiquidityAdapter} from "../src/V2SingleSidedLiquidityAdapter.sol";
 
-interface IEnvCheatcode {
-    function envString(string calldata key) external returns (string memory);
-}
-
 /// @notice Foundry deployment script that avoids forge-std imports so Remix can compile this workspace without forge-std warnings.
 /// @dev Required env: OWNER, AMM_ROUTER. Provide the deployer key/account to Foundry
 ///      through its normal broadcast configuration (for example --private-key).
 ///      AMM_ROUTER must be a verified venue-specific V2-compatible AMM router.
 ///      Do NOT use an Elysium bridge router.
-contract DeployElliquidAdapter {
-    interface IVm {
-        function envString(string calldata key) external returns (string memory);
-        function startBroadcast() external;
-        function stopBroadcast() external;
-    }
+interface IElliquidScriptVm {
+    function envString(string calldata key) external returns (string memory);
+    function startBroadcast() external;
+    function stopBroadcast() external;
+}
 
+contract DeployElliquidAdapter {
     address internal constant VM_ADDRESS = address(
         uint160(uint256(keccak256("hevm cheat code")))
     );
-    IVm internal constant vm = IVm(VM_ADDRESS);
+    IElliquidScriptVm internal constant vm = IElliquidScriptVm(VM_ADDRESS);
 
     function run() external returns (V2SingleSidedLiquidityAdapter adapter) {
         address owner = _envAddress("OWNER");
@@ -37,7 +33,7 @@ contract DeployElliquidAdapter {
     }
 
     function _envString(string memory key) internal returns (string memory) {
-        return IEnvCheatcode(address(vm)).envString(key);
+        return vm.envString(key);
     }
 
     function _envAddress(string memory key) internal returns (address) {
