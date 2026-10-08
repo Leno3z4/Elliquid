@@ -3,8 +3,9 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 
 export const metadata: Metadata = {
-  title: "Elliquid — Liquidity for Elysium",
-  description: "Programmable liquidity marketplace for Elysium markets.",
+  title: "Elliquid | Programmable liquidity for Elysium",
+  description: "Review Elysium liquidity requests, configured strategies, project records, and documented protocol limits.",
+  icons: { icon: "data:," },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
