@@ -243,6 +243,51 @@ contract ElliquidAMMTest is Test {
         assertGt(router.getAmountsOut(1 ether, path)[1], 0);
     }
 
+
+    function testFuzz_ConstantProductInvariantDoesNotDecrease(uint96 rawAmount) public {
+        _seed(address(tokenA), address(tokenB));
+        uint256 amountIn = bound(uint256(rawAmount), 1, 5 ether);
+        tokenA.approve(address(poolAB), type(uint256).max);
+
+        (uint112 before0, uint112 before1,) = poolAB.getReserves();
+        uint256 invariantBefore = uint256(before0) * uint256(before1);
+
+        poolAB.swapExactInput(
+            address(tokenA),
+            amountIn,
+            0,
+            address(this),
+            block.timestamp + 1 days
+        );
+
+        (uint112 after0, uint112 after1,) = poolAB.getReserves();
+        uint256 invariantAfter = uint256(after0) * uint256(after1);
+        assertGe(invariantAfter, invariantBefore, "CONSTANT_PRODUCT_DECREASED");
+    }
+
+    function testFuzz_SlippageRevertIsAtomic(uint96 rawAmount) public {
+        _seed(address(tokenA), address(tokenB));
+        uint256 amountIn = bound(uint256(rawAmount), 1, 5 ether);
+        address[] memory path = new address[](2);
+        path[0] = address(tokenA);
+        path[1] = address(tokenB);
+        uint256 quote = router.getAmountsOut(amountIn, path)[1];
+        uint256 inputBefore = tokenA.balanceOf(address(this));
+        uint256 outputBefore = tokenB.balanceOf(address(this));
+
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "MINIMUM_OUTPUT"));
+        router.swapExactTokensForTokens(
+            amountIn,
+            quote + 1,
+            path,
+            address(this),
+            block.timestamp + 1 days
+        );
+
+        assertEq(tokenA.balanceOf(address(this)), inputBefore, "INPUT_NOT_ATOMIC");
+        assertEq(tokenB.balanceOf(address(this)), outputBefore, "OUTPUT_NOT_ATOMIC");
+    }
+
     function testPoolPaginationIsBounded() public {
         address[] memory page = factory.getPools(0, 50);
         assertEq(page.length, 1);
