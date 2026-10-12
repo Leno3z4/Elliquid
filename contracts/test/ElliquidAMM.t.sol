@@ -225,12 +225,12 @@ contract ElliquidAMMTest is Test {
 
     function testUnsolicitedTransferRequiresSyncBeforeSwap() public {
         _seed(address(tokenA), address(tokenB));
-        tokenA.transfer(address(poolAB), 1 ether);
+        MockERC20(poolAB.token0()).transfer(address(poolAB), 1 ether);
 
         vm.expectRevert(abi.encodeWithSignature("Error(string)", "SYNC_REQUIRED0"));
         address[] memory path = new address[](2);
-        path[0] = address(tokenA);
-        path[1] = address(tokenB);
+        path[0] = poolAB.token0();
+        path[1] = poolAB.token1();
         router.swapExactTokensForTokens(
             1 ether,
             0,
