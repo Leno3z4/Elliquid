@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BarChart3, Database, LayoutDashboard, ShieldCheck } from "lucide-react";
+import { BarChart3, Database, LayoutDashboard, Layers, ShieldCheck } from "lucide-react";
+import { PoolsPanel } from "@/components/pools-panel";
 import { fetchLiquidityRequests, fetchProjects, fetchStrategies, isApiConfigured, type ApiLiquidityRequest, type ApiProject, type ApiStrategy } from "@/lib/api";
 import { useAccount, useConnect, useSwitchChain } from "wagmi";
 import { elysiumTestnet } from "@/lib/wagmi";
@@ -10,6 +11,7 @@ const nav = [
   ["Overview", LayoutDashboard],
   ["Strategies", BarChart3],
   ["Projects", Database],
+  ["Pools", Layers],
   ["Risk", ShieldCheck],
 ] as const;
 
@@ -137,6 +139,8 @@ export function ElliquidApp() {
               </div>
             </section>
           )}
+
+          {active === "Pools" && <PoolsPanel />}
 
           {active === "Risk" && (
             <section className="card section">
