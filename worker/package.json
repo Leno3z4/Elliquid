@@ -10,7 +10,7 @@
     "check": "tsc --noEmit"
   },
   "dependencies": {
-    "drizzle-orm": "^0.44.7",
+    "drizzle-orm": "^0.45.4",
     "hono": "^4.13.7",
     "viem": "^2.37.5",
     "@elliquid/shared": "file:../packages/shared"
