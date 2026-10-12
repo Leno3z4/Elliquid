@@ -119,6 +119,7 @@ export function ElliquidPools() {
   const [factoryOwner, setFactoryOwner] = useState<Address | null>(null);
   const [protocolPaused, setProtocolPaused] = useState<boolean | null>(null);
   const [selectedAddress, setSelectedAddress] = useState<string>("");
+  const [walletLpBalance, setWalletLpBalance] = useState<bigint | null>(null);
   const [swapQuote, setSwapQuote] = useState<{ output: string; minimum: string; symbol: string } | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
@@ -231,6 +232,27 @@ export function ElliquidPools() {
       setLoadingMore(false);
     }
   }, [client, factoryAddress]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!client || !selectedPool || !wallet) {
+      setWalletLpBalance(null);
+      return () => { cancelled = true; };
+    }
+
+    void client.readContract({
+      address: selectedPool.address,
+      abi: poolAbi,
+      functionName: "balanceOf",
+      args: [wallet],
+    }).then((balance) => {
+      if (!cancelled) setWalletLpBalance(balance);
+    }).catch(() => {
+      if (!cancelled) setWalletLpBalance(null);
+    });
+
+    return () => { cancelled = true; };
+  }, [client, selectedPool, wallet]);
 
   useEffect(() => {
     let cancelled = false;
