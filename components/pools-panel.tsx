@@ -251,12 +251,12 @@ export function PoolsPanel() {
   const minRemoveB = removeQuote ? removeQuote[1] * BigInt(10000 - slippageBps) / BPS : 0n;
 
   useEffect(() => {
-    const activeClient = client;
-    if (!activeClient || !poolAddressesRead.data?.length) {
+    if (!client || !poolAddressesRead.data?.length) {
       setListedPools([]);
       setPoolListError("");
       return;
     }
+    const activeClient = client;
     let cancelled = false;
     const addresses = poolAddressesRead.data as Address[];
     async function loadPools() {
