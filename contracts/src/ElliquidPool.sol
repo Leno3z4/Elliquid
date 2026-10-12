@@ -89,6 +89,43 @@ contract ElliquidPool {
         return (reserve0, reserve1, blockTimestampLast);
     }
 
+    function previewAddLiquidity(uint256 amount0Desired, uint256 amount1Desired)
+        external
+        view
+        returns (uint256 amount0, uint256 amount1, uint256 shares)
+    {
+        require(amount0Desired > 0 && amount1Desired > 0, "ZERO_AMOUNT");
+        require(amount0Desired <= type(uint112).max && amount1Desired <= type(uint112).max, "AMOUNT_TOO_LARGE");
+        if (totalSupply == 0) {
+            uint256 root = _sqrt(amount0Desired * amount1Desired);
+            if (root <= MINIMUM_LIQUIDITY) return (amount0Desired, amount1Desired, 0);
+            return (amount0Desired, amount1Desired, root - MINIMUM_LIQUIDITY);
+        }
+        require(reserve0 > 0 && reserve1 > 0, "EMPTY_RESERVES");
+        uint256 amount1Optimal = (amount0Desired * uint256(reserve1)) / uint256(reserve0);
+        if (amount1Optimal <= amount1Desired) {
+            amount0 = amount0Desired;
+            amount1 = amount1Optimal;
+        } else {
+            amount0 = (amount1Desired * uint256(reserve0)) / uint256(reserve1);
+            amount1 = amount1Desired;
+        }
+        if (amount0 == 0 || amount1 == 0) return (amount0, amount1, 0);
+        uint256 shares0 = (amount0 * totalSupply) / uint256(reserve0);
+        uint256 shares1 = (amount1 * totalSupply) / uint256(reserve1);
+        shares = shares0 < shares1 ? shares0 : shares1;
+    }
+
+    function previewRemoveLiquidity(uint256 shares)
+        external
+        view
+        returns (uint256 amount0, uint256 amount1)
+    {
+        require(shares > 0 && totalSupply > 0, "BAD_SHARES");
+        amount0 = (shares * IERC20Pool(token0).balanceOf(address(this))) / totalSupply;
+        amount1 = (shares * IERC20Pool(token1).balanceOf(address(this))) / totalSupply;
+    }
+
     function addLiquidity(
         uint256 amount0Desired,
         uint256 amount1Desired,
