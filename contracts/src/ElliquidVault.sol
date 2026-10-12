@@ -14,6 +14,7 @@ interface IElliquidAdapter {
 
 interface IManagedStrategyAdapter {
     function syncManagedAssets(address vault) external returns (uint256 managedAssets);
+    function previewManagedAssets(address vault) external view returns (uint256 managedAssets);
     function withdrawToVault(uint256 minAssetOut) external returns (uint256 amountOut);
     function hasPosition(address vault) external view returns (bool);
 }
@@ -103,13 +104,20 @@ contract ElliquidVault {
 
     function previewDeposit(uint256 assets) public view returns (uint256) {
         if (totalShares == 0) return assets;
-        require(totalManagedAssets > 0, "ZERO_NAV");
-        return assets * totalShares / totalManagedAssets;
+        uint256 nav = strategyAdapter == address(0)
+            ? totalManagedAssets
+            : IManagedStrategyAdapter(strategyAdapter).previewManagedAssets(address(this));
+        require(nav > 0, "ZERO_NAV");
+        return assets * totalShares / nav;
     }
 
     function previewWithdraw(uint256 shares) public view returns (uint256) {
         require(totalShares > 0, "NO_SHARES");
-        return shares * totalManagedAssets / totalShares;
+        uint256 nav = strategyAdapter == address(0)
+            ? totalManagedAssets
+            : IManagedStrategyAdapter(strategyAdapter).previewManagedAssets(address(this));
+        require(nav > 0, "ZERO_NAV");
+        return shares * nav / totalShares;
     }
 
     function deposit(uint256 assets) external nonReentrant returns (uint256 shares) {
