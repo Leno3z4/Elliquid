@@ -9,3 +9,5 @@ optimizer_runs = 200
 
 [rpc_endpoints]
 elysium_testnet = "https://testnet-rpc.elysium.kinetiq.xyz"
+
+via_ir = true
