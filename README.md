@@ -120,7 +120,7 @@ Elliquid now has a first-party constant-product pool design rather than requirin
 
 - `ElliquidPoolFactory`: owner-controlled token allowlist, deterministic token ordering, one pool per pair, per-new-pool fee configuration, bounded on-chain pool pagination and protocol pause.
 - `ElliquidPool`: one pair of ERC-20 tokens, LP shares, liquidity add/remove, exact-input swaps, per-pool immutable fees, deadlines and minimum-output checks. The emergency pause stops swaps and new liquidity but keeps LP withdrawals available.
-- `ElliquidRouter`: ratio-aware liquidity add with excess-token refunds, LP removal, direct swaps and bounded multi-hop routes (up to four hops). It exposes a V2-compatible liquidity method so the existing vault adapter can be configured against Elliquid's own router rather than an external AMM.
+- `ElliquidRouter`: ratio-aware liquidity add with excess-token refunds, LP removal, direct swaps and bounded multi-hop routes (up to four hops). It exposes a V2-compatible liquidity method, but this interface alone does **not** make the existing vault adapter safe for deployment.
 - `components/elliquid-pools.tsx`: reads the factory/pool state from Elysium Testnet and supports allowlisting (factory owner only), pool creation, swap, add liquidity and remove liquidity from a connected wallet.
 
 ### Testnet configuration
@@ -137,3 +137,5 @@ Pool listing and quotes are read from contracts, not from placeholder pool metri
 This is a hackathon/testnet implementation, **not an audited production AMM**. Only allowlist known standard ERC-20s; rebasing, fee-on-transfer and non-standard tokens are unsupported. An AMM pool's spot price must not be used as a lending collateral oracle or the vault's sole source of NAV. Before accepting real deposits, complete external review, stateful invariant/fuzz testing, static analysis, gas/DoS assessment, end-to-end deployment testing and an operational pause/incident plan.
 
 The current native AMM lives in the draft pull request [#4](https://github.com/Leno3z4/Elliquid/pull/4). It is not yet merged or deployed. The separate Market Lab experiment [#2](https://github.com/Leno3z4/Elliquid/pull/2) is not required by this architecture and remains separate.
+
+**Vault integration caveat:** the current `ElliquidVault` does not yet calculate live NAV from an AMM LP position or automatically unwind that position during vault withdrawals. Do not attach the existing single-sided adapter to the demo vault for user capital until that accounting/unwind path has been implemented and tested end to end. The current hackathon demo should prove the native pool flow (create pair, seed, swap, LP deposit and withdrawal) without representing an externally invested vault as fully integrated.
