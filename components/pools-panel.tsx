@@ -252,7 +252,8 @@ export function PoolsPanel() {
   const minRemoveB = removeQuote ? removeQuote[1] * BigInt(10000 - slippageBps) / BPS : 0n;
 
   useEffect(() => {
-    if (!client || !poolAddressesRead.data?.length) {
+    const activeClient = client;
+    if (!activeClient || !poolAddressesRead.data?.length) {
       setListedPools([]);
       setPoolListError("");
       return;
@@ -262,16 +263,16 @@ export function PoolsPanel() {
     async function loadPools() {
       const rows = await Promise.all(addresses.map(async (address): Promise<ListedPool> => {
         const [token0, token1, feeBps, reserves] = await Promise.all([
-          client.readContract({ address, abi: poolAbi, functionName: "token0" }),
-          client.readContract({ address, abi: poolAbi, functionName: "token1" }),
-          client.readContract({ address, abi: poolAbi, functionName: "feeBps" }),
-          client.readContract({ address, abi: poolAbi, functionName: "getReserves" }),
+          activeClient.readContract({ address, abi: poolAbi, functionName: "token0" }),
+          activeClient.readContract({ address, abi: poolAbi, functionName: "token1" }),
+          activeClient.readContract({ address, abi: poolAbi, functionName: "feeBps" }),
+          activeClient.readContract({ address, abi: poolAbi, functionName: "getReserves" }),
         ]);
         const [symbol0, decimals0, symbol1, decimals1] = await Promise.all([
-          client.readContract({ address: token0, abi: erc20Abi, functionName: "symbol" }),
-          client.readContract({ address: token0, abi: erc20Abi, functionName: "decimals" }),
-          client.readContract({ address: token1, abi: erc20Abi, functionName: "symbol" }),
-          client.readContract({ address: token1, abi: erc20Abi, functionName: "decimals" }),
+          activeClient.readContract({ address: token0, abi: erc20Abi, functionName: "symbol" }),
+          activeClient.readContract({ address: token0, abi: erc20Abi, functionName: "decimals" }),
+          activeClient.readContract({ address: token1, abi: erc20Abi, functionName: "symbol" }),
+          activeClient.readContract({ address: token1, abi: erc20Abi, functionName: "decimals" }),
         ]);
         return {
           address,
