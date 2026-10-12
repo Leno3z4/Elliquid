@@ -224,8 +224,8 @@ contract ElliquidVault {
 
     function setAdapterAllowed(address adapter, bool allowed) external onlyOwner {
         require(adapter != address(0), "BAD_ADAPTER");
-        if (!allowed && adapter == strategyAdapter) {
-            require(!IManagedStrategyAdapter(adapter).hasPosition(address(this)), "ACTIVE_STRATEGY_POSITION");
+        if (!allowed) {
+            require(adapter != strategyAdapter, "CLEAR_STRATEGY_ADAPTER_FIRST");
         }
         approvedAdapters[adapter] = allowed;
         emit AdapterApproval(adapter, allowed);
