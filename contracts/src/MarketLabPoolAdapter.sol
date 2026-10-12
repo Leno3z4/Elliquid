@@ -318,9 +318,10 @@ contract MarketLabPoolAdapter {
 
         uint256 inputStart = input.balanceOf(address(this));
         uint256 outputStart = output.balanceOf(address(this));
-        require(input.transferFrom(vault, address(this), amountIn), "PULL_INPUT");
+        _safeTransferFrom(input, vault, address(this), amountIn);
 
         uint256 swapAmount = amountIn / 2;
+        _safeApprove(input, poolAddress, 0);
         _safeApprove(input, poolAddress, swapAmount);
         uint256 swapOutput = pool.swapExactInput(
             assetAddress, swapAmount, minSwapOut, address(this), deadline
@@ -362,7 +363,7 @@ contract MarketLabPoolAdapter {
 
         // Keep each vault's unspent non-asset amount attributed to that vault.
         require(output.balanceOf(address(this)) >= outputStart + swapOutput - outputUsed, "OUTPUT_ACCOUNTING");
-        _reportManagedAssets(vault, true);
+        _reportManagedAssets(vault);
 
         emit PositionEntered(vault, poolAddress, tokenOut, amountIn, swapOutput, minted);
         return minted;
@@ -398,6 +399,7 @@ contract MarketLabPoolAdapter {
             (uint256 expectedOut,) = pool.quoteSwap(tokenOut, otherToSell);
             uint256 minSwapOut = expectedOut * (BPS - maxExitSlippageBps) / BPS;
             if (minSwapOut == 0) minSwapOut = 1;
+            _safeApprove(otherToken, poolAddress, 0);
             _safeApprove(otherToken, poolAddress, otherToSell);
             swappedToAsset = pool.swapExactInput(
                 tokenOut, otherToSell, minSwapOut, address(this), deadline
@@ -414,22 +416,16 @@ contract MarketLabPoolAdapter {
         }
 
         _safeTransfer(assetToken, vault, amountOut);
-        _reportManagedAssets(vault, false);
+        _reportManagedAssets(vault);
 
         emit PositionExited(
             vault, poolAddress, sharesToBurn, amountOut, positionShares[vault]
         );
     }
 
-    function _reportManagedAssets(address vault, bool strict) internal {
+    function _reportManagedAssets(address vault) internal {
         uint256 nav = previewManagedAssets(vault);
-        if (strict) {
-            IMLVault(vault).reportManagedAssets(nav);
-        } else {
-            // A position exit must not be blocked by the vault's loss circuit breaker.
-            // Vault V2 records the real NAV and pauses further strategy execution if needed.
-            IMLVault(vault).reportManagedAssets(nav);
-        }
+        IMLVault(vault).reportManagedAssets(nav);
         emit ManagedAssetsReported(vault, nav);
     }
 
@@ -456,6 +452,14 @@ contract MarketLabPoolAdapter {
     function _safeTransfer(IMLToken token, address to, uint256 amount) internal {
         _callOptionalReturn(
             address(token), abi.encodeWithSelector(IMLToken.transfer.selector, to, amount), "TRANSFER"
+        );
+    }
+
+    function _safeTransferFrom(IMLToken token, address from, address to, uint256 amount) internal {
+        _callOptionalReturn(
+            address(token),
+            abi.encodeWithSelector(IMLToken.transferFrom.selector, from, to, amount),
+            "TRANSFER_FROM"
         );
     }
 
