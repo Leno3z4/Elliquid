@@ -18,6 +18,7 @@ jobs:
       - run: npm install
       - run: npm run lint
       - run: npm run check:api
+      - run: npm run build
 
   contracts:
     runs-on: ubuntu-latest
