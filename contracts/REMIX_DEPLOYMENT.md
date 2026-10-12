@@ -80,7 +80,7 @@ The Elysium Testnet Explorer currently lists these deployed assets:
 | Token | Contract | Decimals | Explorer |
 |---|---|---:|---|
 | USDC | `0x7D29d8047B905000459c0E80c34a26CeedcB47b2` | 6 | https://blobtrace.com/token/0x7D29d8047B905000459c0E80c34a26CeedcB47b2 |
-| WHYPE | `0xCD57F65c2B0e5881CFC2E609F7CD53b746E1F234` | 18 | https://blobtrace.com/token/0xCD57F65c2B0e5881CFC2E609F7CD53b746E1F234 |
+| WHYPE | `0xA5b72796E5bf80443DC134F3c8a1cc97dcCC39B9` | 18 | https://blobtrace.com/token/0xCD57F65c2B0e5881CFC2E609F7CD53b746E1F234 |
 
 These are testnet assets, not mainnet assets or a price guarantee. Balances may depend on faucet/community distribution. Your previous vault asset address matches the USDC contract shown above. Verify `symbol()`, `decimals()`, and your wallet balance on chain before approving any amount.
 
@@ -88,23 +88,34 @@ These are testnet assets, not mainnet assets or a price guarantee. Balances may 
 
 Emergency pause: the factory owner can call `setPaused(true)`; swaps and new liquidity additions stop, but LP withdrawals remain available. Only the factory owner can unpause.
 
-#### Optional reproducible Foundry deployment
+#### Reproducible Foundry deployment (split to respect EIP-170)
 
-The repository includes `contracts/script/DeployElliquidAMM.s.sol` for deploying the factory and router together. From the `contracts` directory on your own machine:
+The deployment code is split into two scripts because a single script that embeds both deployment bytecodes exceeds the EVM runtime code-size limit. Use `contracts/.env.example` as a template and run the commands from the `contracts` directory.
 
-1. Copy `.env.example` to `.env` and set `OWNER` to your governance wallet and `DEFAULT_FEE_BPS=30`.
-2. Make sure your deployer wallet has only a small amount of Elysium testnet HYPE for gas. Never use a mainnet wallet or commit a private key.
-3. In a local shell, export the testnet deployer key as `DEPLOYER_PRIVATE_KEY`, then run:
+1. Copy `.env.example` to `.env`. Set `OWNER` to your governance wallet and `DEFAULT_FEE_BPS=30`. Keep `.env` uncommitted.
+2. Set `DEPLOYER_PRIVATE_KEY` only in your local shell / secret manager. The funded deployer must have testnet HYPE for gas. Never paste the key into chat or commit it.
+3. Deploy the factory:
 
 ```sh
-forge script script/DeployElliquidAMM.s.sol:DeployElliquidAMM \\
-  --rpc-url https://testnet-rpc.elysium.kinetiq.xyz \\
+export DEPLOYER_PRIVATE_KEY=0xYOUR_TESTNET_DEPLOYER_PRIVATE_KEY
+forge script script/DeployElliquidAMMFactory.s.sol:DeployElliquidAMMFactory \
+  --rpc-url https://testnet-rpc.elysium.kinetiq.xyz \
   --broadcast --private-key "$DEPLOYER_PRIVATE_KEY"
 ```
 
-4. Save the emitted factory/router addresses from the broadcast output. Verify both addresses have contract code and check the factory's `owner()`, `defaultFeeBps()`, `paused()` and both token `tokenAllowed()` values before setting the frontend environment variables.
+4. Copy the deployed factory address into `POOL_FACTORY` in `.env`. Keep `OWNER` set to the exact owner passed to the factory constructor.
+5. Deploy the router:
 
-This script deploys only the AMM factory and router. It does not change any of the existing Elliquid vault, marketplace, registry or fee-controller contracts.
+```sh
+forge script script/DeployElliquidAMMRouter.s.sol:DeployElliquidAMMRouter \
+  --rpc-url https://testnet-rpc.elysium.kinetiq.xyz \
+  --broadcast --private-key "$DEPLOYER_PRIVATE_KEY"
+```
+
+6. In Remix or the app, verify factory `owner()`, `defaultFeeBps()`, `paused()`, and router `factory()`. Then use the connected owner wallet to allowlist the intended test assets, create the pool, add a tiny test liquidity amount, swap a tiny amount and remove LP shares.
+7. Set `NEXT_PUBLIC_ELLIQUID_POOL_FACTORY_ADDRESS` and `NEXT_PUBLIC_ELLIQUID_ROUTER_ADDRESS` in the frontend hosting environment and redeploy the frontend.
+
+The scripts deploy only the AMM factory and router. They do not change existing vault, marketplace, registry or fee-controller contracts.
 
 ### 5. Vault strategy integration (not enabled for the current demo)
 
