@@ -12,6 +12,8 @@ contract ElliquidPoolFactory {
 
     address public owner;
     address public pendingOwner;
+    address public pauseGuardian;
+    address public pendingPauseGuardian;
     uint16 public defaultFeeBps;
     bool public paused;
 
@@ -22,6 +24,8 @@ contract ElliquidPoolFactory {
 
     event OwnershipTransferStarted(address indexed owner, address indexed pendingOwner);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event PauseGuardianUpdateStarted(address indexed currentGuardian, address indexed pendingGuardian);
+    event PauseGuardianSet(address indexed guardian);
     event TokenAllowedSet(address indexed token, bool allowed);
     event ProtocolPauseSet(bool paused);
     event DefaultFeeSet(uint16 previousFeeBps, uint16 newFeeBps);
@@ -38,12 +42,16 @@ contract ElliquidPoolFactory {
         _;
     }
 
-    constructor(address initialOwner, uint16 initialFeeBps) {
+    constructor(address initialOwner, address initialPauseGuardian, uint16 initialFeeBps) {
         require(initialOwner != address(0), "BAD_OWNER");
+        require(initialPauseGuardian != address(0), "BAD_GUARDIAN");
+        require(initialOwner != initialPauseGuardian, "ROLES_NOT_SEPARATE");
         require(initialFeeBps <= MAX_FEE_BPS, "FEE_TOO_HIGH");
         owner = initialOwner;
+        pauseGuardian = initialPauseGuardian;
         defaultFeeBps = initialFeeBps;
         emit OwnershipTransferred(address(0), initialOwner);
+        emit PauseGuardianSet(initialPauseGuardian);
         emit DefaultFeeSet(0, initialFeeBps);
     }
 
@@ -116,11 +124,32 @@ contract ElliquidPoolFactory {
         emit DefaultFeeSet(previous, newFeeBps);
     }
 
-    /// @notice Emergency pause stops new liquidity and swaps; pool withdrawals remain available.
-    function setPaused(bool shouldPause) external onlyOwner {
+    /// @notice Owner or separate guardian may pause. Only owner may restore trading.
+    function setPaused(bool shouldPause) external {
+        if (shouldPause) {
+            require(msg.sender == owner || msg.sender == pauseGuardian, "PAUSE_AUTH");
+        } else {
+            require(msg.sender == owner, "OWNER_UNPAUSE_ONLY");
+        }
         require(paused != shouldPause, "NO_CHANGE");
         paused = shouldPause;
         emit ProtocolPauseSet(shouldPause);
+    }
+
+    function startPauseGuardianUpdate(address newGuardian) external onlyOwner {
+        require(newGuardian != address(0) && newGuardian != owner, "BAD_GUARDIAN");
+        pendingPauseGuardian = newGuardian;
+        emit PauseGuardianUpdateStarted(pauseGuardian, newGuardian);
+    }
+
+    function acceptPauseGuardianUpdate() external {
+        require(msg.sender == pendingPauseGuardian, "PENDING_GUARDIAN");
+        address previousGuardian = pauseGuardian;
+        pauseGuardian = msg.sender;
+        pendingPauseGuardian = address(0);
+        emit PauseGuardianSet(pauseGuardian);
+        // Event log records replacement; previous guardian is included in update-start event.
+        previousGuardian;
     }
 
     function startOwnershipTransfer(address newOwner) external onlyOwner {
