@@ -153,7 +153,7 @@ contract ElliquidPool {
                 amount0 = amount0Desired;
                 amount1 = amount1Optimal;
             } else {
-                uint256 amount0Optimal = (amount1Desired * balance0) / balance1;
+                uint256 amount0Optimal = (amount1Desired * uint256(reserve0)) / uint256(reserve1);
                 amount0 = amount0Optimal;
                 amount1 = amount1Desired;
             }
