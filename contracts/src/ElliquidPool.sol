@@ -157,29 +157,53 @@ contract ElliquidPool {
         require(block.timestamp <= deadline, "EXPIRED");
         require(recipient != address(0) && recipient != address(this), "BAD_RECIPIENT");
         require(shares > 0 && balanceOf[msg.sender] >= shares, "BAD_SHARES");
-        uint256 supply = totalSupply;
-        require(supply > 0, "NO_LIQUIDITY");
-        uint256 balance0 = IERC20Pool(token0).balanceOf(address(this));
-        uint256 balance1 = IERC20Pool(token1).balanceOf(address(this));
-        amount0 = (shares * balance0) / supply;
-        amount1 = (shares * balance1) / supply;
+        (amount0, amount1) = _executeRemove(shares, recipient, minAmount0, minAmount1);
+        emit LiquidityRemoved(msg.sender, recipient, amount0, amount1, shares);
+    }
+
+    struct RemoveState {
+        uint256 supply;
+        uint256 balance0;
+        uint256 balance1;
+        uint256 recipient0Before;
+        uint256 recipient1Before;
+    }
+
+    function _executeRemove(
+        uint256 shares,
+        address recipient,
+        uint256 minAmount0,
+        uint256 minAmount1
+    ) internal returns (uint256 amount0, uint256 amount1) {
+        RemoveState memory s;
+        s.supply = totalSupply;
+        require(s.supply > 0, "NO_LIQUIDITY");
+        s.balance0 = IERC20Pool(token0).balanceOf(address(this));
+        s.balance1 = IERC20Pool(token1).balanceOf(address(this));
+        amount0 = (shares * s.balance0) / s.supply;
+        amount1 = (shares * s.balance1) / s.supply;
         require(amount0 >= minAmount0 && amount1 >= minAmount1, "MINIMUM_OUTPUT");
         require(amount0 > 0 || amount1 > 0, "ZERO_OUTPUT");
 
         _burn(msg.sender, shares);
-        uint256 recipient0Before = IERC20Pool(token0).balanceOf(recipient);
-        uint256 recipient1Before = IERC20Pool(token1).balanceOf(recipient);
+        s.recipient0Before = IERC20Pool(token0).balanceOf(recipient);
+        s.recipient1Before = IERC20Pool(token1).balanceOf(recipient);
         if (amount0 > 0) _safeTransfer(token0, recipient, amount0);
         if (amount1 > 0) _safeTransfer(token1, recipient, amount1);
         uint256 recipient0After = IERC20Pool(token0).balanceOf(recipient);
         uint256 recipient1After = IERC20Pool(token1).balanceOf(recipient);
-        require(recipient0After >= recipient0Before && recipient0After - recipient0Before == amount0, "UNSUPPORTED_TOKEN0");
-        require(recipient1After >= recipient1Before && recipient1After - recipient1Before == amount1, "UNSUPPORTED_TOKEN1");
+        require(
+            recipient0After >= s.recipient0Before && recipient0After - s.recipient0Before == amount0,
+            "UNSUPPORTED_TOKEN0"
+        );
+        require(
+            recipient1After >= s.recipient1Before && recipient1After - s.recipient1Before == amount1,
+            "UNSUPPORTED_TOKEN1"
+        );
         _update(
             IERC20Pool(token0).balanceOf(address(this)),
             IERC20Pool(token1).balanceOf(address(this))
         );
-        emit LiquidityRemoved(msg.sender, recipient, amount0, amount1, shares);
     }
 
     function swapExactInput(
