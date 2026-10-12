@@ -193,3 +193,8 @@ h1 { font-size: clamp(30px, 4vw, 52px); line-height: 1; margin: 0; letter-spacin
   .amm-pool-main strong { font-size: 11px; }
   .amm-pool-reserves span { font-size: 9px; }
 }
+
+.amm-button.danger { border-color: rgba(255,126,134,.6); color: #ffd8db; background: rgba(255,126,134,.09); }
+.amm-quote { display: grid; gap: 5px; padding: 12px; border: 1px solid rgba(141,255,154,.22); border-radius: 10px; background: rgba(141,255,154,.035); }
+.amm-quote strong { color: #d8ffdd; font-size: 12px; }
+.amm-quote span { color: var(--muted); font-size: 10px; overflow-wrap: anywhere; }
