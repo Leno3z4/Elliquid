@@ -92,6 +92,8 @@ contract ElliquidPool {
     function addLiquidity(
         uint256 amount0Desired,
         uint256 amount1Desired,
+        uint256 minAmount0,
+        uint256 minAmount1,
         uint256 minShares,
         address recipient,
         uint256 deadline
@@ -119,7 +121,7 @@ contract ElliquidPool {
         }
 
         require(amount0 > 0 && amount1 > 0, "AMOUNT_TOO_SMALL");
-        require(amount0 >= (amount0Desired > amount1Desired ? minShares : minShares) || minShares == 0, "MIN_SHARES");
+        require(amount0 >= minAmount0 && amount1 >= minAmount1, "MINIMUM_AMOUNT");
         uint256 before0 = IERC20Pool(token0).balanceOf(address(this));
         uint256 before1 = IERC20Pool(token1).balanceOf(address(this));
         _safeTransferFrom(token0, msg.sender, address(this), amount0);
