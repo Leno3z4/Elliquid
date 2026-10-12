@@ -84,6 +84,33 @@ contract MarketLabPoolAdapter {
         uint256 otherToSell;
     }
 
+    struct EnterParams {
+        address pool;
+        address tokenOut;
+        uint256 amountIn;
+        uint256 minSwapOut;
+        uint256 minShares;
+        uint256 deadline;
+    }
+
+    struct EnterContext {
+        address assetAddress;
+        uint256 outputStart;
+        uint256 swapAmount;
+        uint256 swapOutput;
+        uint256 priorDust;
+        uint256 inputUsed;
+        uint256 outputUsed;
+        uint256 minted;
+        uint256 inputDust;
+    }
+
+    struct DepositOutcome {
+        uint256 inputUsed;
+        uint256 outputUsed;
+        uint256 minted;
+    }
+
     event OwnershipTransferStarted(address indexed owner, address indexed pendingOwner);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event VaultApproval(address indexed vault, bool approved);
@@ -196,7 +223,7 @@ contract MarketLabPoolAdapter {
 
         if (action == ACTION_ENTER) {
             (
-                uint8 ignoredAction,
+                ,
                 address pool,
                 address tokenOut,
                 uint256 amountIn,
@@ -204,11 +231,15 @@ contract MarketLabPoolAdapter {
                 uint256 minShares,
                 uint256 deadline
             ) = abi.decode(data, (uint8, address, address, uint256, uint256, uint256, uint256));
-            ignoredAction;
-            uint256 shares = _enter(
-                msg.sender, pool, tokenOut, amountIn, minSwapOut, minShares, deadline
-            );
-            result = abi.encode(shares);
+            EnterParams memory p = EnterParams({
+                pool: pool,
+                tokenOut: tokenOut,
+                amountIn: amountIn,
+                minSwapOut: minSwapOut,
+                minShares: minShares,
+                deadline: deadline
+            });
+            result = abi.encode(_enter(msg.sender, p));
         } else if (action == ACTION_EXIT) {
             (
                 uint8 ignoredAction,
@@ -302,89 +333,119 @@ contract MarketLabPoolAdapter {
         );
     }
 
-    function _enter(
-        address vault,
-        address poolAddress,
-        address tokenOut,
-        uint256 amountIn,
-        uint256 minSwapOut,
-        uint256 minShares,
-        uint256 deadline
-    ) internal returns (uint256 sharesMinted) {
-        require(allowedPools[poolAddress], "POOL_NOT_ALLOWED");
-        require(block.timestamp <= deadline, "EXPIRED");
-        require(amountIn > 2 && minSwapOut > 0 && minShares > 0, "BAD_AMOUNT");
-        address assetAddress = IMLVault(vault).asset();
-        IMLToken input = IMLToken(assetAddress);
-        IMLToken output = IMLToken(tokenOut);
-        IMarketLabPool pool = IMarketLabPool(poolAddress);
+    function _enter(address vault, EnterParams memory p) internal returns (uint256 sharesMinted) {
+        require(allowedPools[p.pool], "POOL_NOT_ALLOWED");
+        require(block.timestamp <= p.deadline, "EXPIRED");
+        require(p.amountIn > 2 && p.minSwapOut > 0 && p.minShares > 0, "BAD_AMOUNT");
+        _validateEntry(vault, p);
 
+        EnterContext memory e;
+        e.assetAddress = IMLVault(vault).asset();
+        IMLToken input = IMLToken(e.assetAddress);
+        IMLToken output = IMLToken(p.tokenOut);
+        e.outputStart = output.balanceOf(address(this));
+        _safeTransferFrom(input, vault, address(this), p.amountIn);
+
+        e.swapAmount = p.amountIn / 2;
+        e.swapOutput = _swapIntoOther(e.assetAddress, p, e.swapAmount);
+        e.priorDust = outputDustByVault[vault];
+
+        DepositOutcome memory d = _depositPosition(
+            e.assetAddress,
+            p,
+            p.amountIn - e.swapAmount,
+            e.priorDust + e.swapOutput
+        );
+        e.inputUsed = d.inputUsed;
+        e.outputUsed = d.outputUsed;
+        e.minted = d.minted;
+
+        require(outputDustByVault[vault] == e.priorDust, "DUST_CHANGED");
+        positionPool[vault] = p.pool;
+        positionTokenOut[vault] = p.tokenOut;
+        positionShares[vault] += e.minted;
+        outputDustByVault[vault] = e.priorDust + e.swapOutput - e.outputUsed;
+
+        e.inputDust = (p.amountIn - e.swapAmount) - e.inputUsed;
+        if (e.inputDust != 0) _safeTransfer(input, vault, e.inputDust);
+        require(output.balanceOf(address(this)) >= e.outputStart + e.swapOutput - e.outputUsed, "OUTPUT_ACCOUNTING");
+
+        _reportManagedAssets(vault);
+        emit PositionEntered(vault, p.pool, p.tokenOut, p.amountIn, e.swapOutput, e.minted);
+        return e.minted;
+    }
+
+    function _validateEntry(address vault, EnterParams memory p) internal view {
+        address assetAddress = IMLVault(vault).asset();
+        IMarketLabPool pool = IMarketLabPool(p.pool);
         address token0 = pool.token0();
         address token1 = pool.token1();
         require(
-            (token0 == assetAddress && token1 == tokenOut)
-                || (token1 == assetAddress && token0 == tokenOut),
+            (token0 == assetAddress && token1 == p.tokenOut)
+                || (token1 == assetAddress && token0 == p.tokenOut),
             "POOL_TOKEN_MISMATCH"
         );
         require(pool.totalSupply() > 0, "POOL_NOT_SEEDED");
-        require(positionPool[vault] == address(0) || positionPool[vault] == poolAddress, "OTHER_POOL_ACTIVE");
         require(
-            positionPool[vault] == address(0) || positionTokenOut[vault] == tokenOut,
+            positionPool[vault] == address(0) || positionPool[vault] == p.pool,
+            "OTHER_POOL_ACTIVE"
+        );
+        require(
+            positionPool[vault] == address(0) || positionTokenOut[vault] == p.tokenOut,
             "OTHER_TOKEN_ACTIVE"
         );
-        require(input.allowance(vault, address(this)) == amountIn, "FUNDING_MISMATCH");
-
-        uint256 inputStart = input.balanceOf(address(this));
-        uint256 outputStart = output.balanceOf(address(this));
-        _safeTransferFrom(input, vault, address(this), amountIn);
-
-        uint256 swapAmount = amountIn / 2;
-        _safeApprove(input, poolAddress, 0);
-        _safeApprove(input, poolAddress, swapAmount);
-        uint256 swapOutput = pool.swapExactInput(
-            assetAddress, swapAmount, minSwapOut, address(this), deadline
+        require(
+            IMLToken(assetAddress).allowance(vault, address(this)) == p.amountIn,
+            "FUNDING_MISMATCH"
         );
-        _safeApprove(input, poolAddress, 0);
-        require(swapOutput >= minSwapOut, "SWAP_MIN");
+    }
 
-        uint256 maxInputToDeposit = amountIn - swapAmount;
-        uint256 priorDust = outputDustByVault[vault];
-        uint256 maxOutputToDeposit = priorDust + swapOutput;
-        uint256 max0 = assetAddress == token0 ? maxInputToDeposit : maxOutputToDeposit;
-        uint256 max1 = assetAddress == token0 ? maxOutputToDeposit : maxInputToDeposit;
+    function _swapIntoOther(
+        address assetAddress,
+        EnterParams memory p,
+        uint256 swapAmount
+    ) internal returns (uint256 swapOutput) {
+        IMLToken input = IMLToken(assetAddress);
+        _safeApprove(input, p.pool, 0);
+        _safeApprove(input, p.pool, swapAmount);
+        swapOutput = IMarketLabPool(p.pool).swapExactInput(
+            assetAddress, swapAmount, p.minSwapOut, address(this), p.deadline
+        );
+        _safeApprove(input, p.pool, 0);
+        require(swapOutput >= p.minSwapOut, "SWAP_MIN");
+    }
 
+    function _depositPosition(
+        address assetAddress,
+        EnterParams memory p,
+        uint256 maxInput,
+        uint256 maxOutput
+    ) internal returns (DepositOutcome memory d) {
+        IMarketLabPool pool = IMarketLabPool(p.pool);
+        address token0 = pool.token0();
+        uint256 max0 = assetAddress == token0 ? maxInput : maxOutput;
+        uint256 max1 = assetAddress == token0 ? maxOutput : maxInput;
         (uint256 amount0, uint256 amount1, uint256 quotedShares) =
             pool.previewDeposit(max0, max1);
-        require(quotedShares >= minShares, "SHARES_MIN");
+        require(quotedShares >= p.minShares, "SHARES_MIN");
 
-        uint256 inputUsed = assetAddress == token0 ? amount0 : amount1;
-        uint256 outputUsed = assetAddress == token0 ? amount1 : amount0;
-        _safeApprove(input, poolAddress, inputUsed);
-        _safeApprove(output, poolAddress, outputUsed);
+        IMLToken input = IMLToken(assetAddress);
+        IMLToken output = IMLToken(p.tokenOut);
+        uint256 inputProposed = assetAddress == token0 ? amount0 : amount1;
+        uint256 outputProposed = assetAddress == token0 ? amount1 : amount0;
+        _safeApprove(input, p.pool, 0);
+        _safeApprove(input, p.pool, inputProposed);
+        _safeApprove(output, p.pool, 0);
+        _safeApprove(output, p.pool, outputProposed);
         (uint256 used0, uint256 used1, uint256 minted) =
-            pool.deposit(max0, max1, minShares, address(this), deadline);
-        _safeApprove(input, poolAddress, 0);
-        _safeApprove(output, poolAddress, 0);
+            pool.deposit(max0, max1, p.minShares, address(this), p.deadline);
+        _safeApprove(input, p.pool, 0);
+        _safeApprove(output, p.pool, 0);
 
-        inputUsed = assetAddress == token0 ? used0 : used1;
-        outputUsed = assetAddress == token0 ? used1 : used0;
-        require(minted >= minShares, "SHARES_MIN");
-        require(outputDustByVault[vault] == priorDust, "DUST_CHANGED");
-
-        positionPool[vault] = poolAddress;
-        positionTokenOut[vault] = tokenOut;
-        positionShares[vault] += minted;
-        outputDustByVault[vault] = priorDust + swapOutput - outputUsed;
-
-        uint256 inputDust = maxInputToDeposit - inputUsed;
-        if (inputDust != 0) _safeTransfer(input, vault, inputDust);
-
-        // Keep each vault's unspent non-asset amount attributed to that vault.
-        require(output.balanceOf(address(this)) >= outputStart + swapOutput - outputUsed, "OUTPUT_ACCOUNTING");
-        _reportManagedAssets(vault);
-
-        emit PositionEntered(vault, poolAddress, tokenOut, amountIn, swapOutput, minted);
-        return minted;
+        d.inputUsed = assetAddress == token0 ? used0 : used1;
+        d.outputUsed = assetAddress == token0 ? used1 : used0;
+        d.minted = minted;
+        require(d.minted >= p.minShares, "SHARES_MIN");
     }
 
     function _exit(
