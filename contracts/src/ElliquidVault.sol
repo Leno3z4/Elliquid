@@ -12,6 +12,12 @@ interface IElliquidAdapter {
     function execute(bytes calldata data) external returns (bytes memory result);
 }
 
+interface IManagedStrategyAdapter {
+    function syncManagedAssets(address vault) external returns (uint256 managedAssets);
+    function withdrawToVault(uint256 minAssetOut) external returns (uint256 amountOut);
+    function hasPosition(address vault) external view returns (bool);
+}
+
 /// @notice Hackathon MVP single-asset vault with separated governance/execution roles.
 /// @dev Not audited. Keep deposits small on testnet until a full audit.
 contract ElliquidVault {
@@ -23,6 +29,7 @@ contract ElliquidVault {
     address public pendingOwner;
     address public strategyExecutor;
     address public pendingStrategyExecutor;
+    address public strategyAdapter;
     address public pauseGuardian;
     address public pendingPauseGuardian;
 
@@ -86,7 +93,9 @@ contract ElliquidVault {
     event PauseGuardianSet(address indexed guardian);
     event StrategyPaused(bool paused);
     event AdapterApproval(address indexed adapter, bool approved);
+    event StrategyAdapterSet(address indexed adapter);
     event StrategyAssetsReported(uint256 managedAssets);
+    event StrategyLossLimitExceeded(uint256 lossBps, uint256 limitBps);
     event DepositsPaused(bool paused);
     event LossLimitSet(uint256 maxLossBps);
     event AdapterFundingLimitSet(uint256 maxFundingBps);
@@ -105,7 +114,12 @@ contract ElliquidVault {
 
     function deposit(uint256 assets) external nonReentrant returns (uint256 shares) {
         require(!depositsPaused, "DEPOSITS_PAUSED");
+        require(!strategyPaused, "STRATEGY_PAUSED");
         require(assets > 0, "ZERO_ASSETS");
+
+        if (strategyAdapter != address(0)) {
+            IManagedStrategyAdapter(strategyAdapter).syncManagedAssets(address(this));
+        }
 
         shares = previewDeposit(assets);
         require(shares > 0, "ZERO_SHARES");
@@ -121,8 +135,17 @@ contract ElliquidVault {
     function withdraw(uint256 shares) external nonReentrant returns (uint256 assets) {
         require(shares > 0 && sharesOf[msg.sender] >= shares, "BAD_SHARES");
 
+        if (strategyAdapter != address(0)) {
+            IManagedStrategyAdapter(strategyAdapter).syncManagedAssets(address(this));
+        }
+
         assets = previewWithdraw(shares);
-        require(asset.balanceOf(address(this)) >= assets, "LIQUIDITY_LOCKED");
+        uint256 idleAssets = asset.balanceOf(address(this));
+        if (idleAssets < assets) {
+            require(strategyAdapter != address(0), "LIQUIDITY_LOCKED");
+            IManagedStrategyAdapter(strategyAdapter).withdrawToVault(assets - idleAssets);
+            require(asset.balanceOf(address(this)) >= assets, "LIQUIDITY_LOCKED");
+        }
 
         sharesOf[msg.sender] -= shares;
         totalShares -= shares;
@@ -201,8 +224,20 @@ contract ElliquidVault {
 
     function setAdapterAllowed(address adapter, bool allowed) external onlyOwner {
         require(adapter != address(0), "BAD_ADAPTER");
+        if (!allowed && adapter == strategyAdapter) {
+            require(!IManagedStrategyAdapter(adapter).hasPosition(address(this)), "ACTIVE_STRATEGY_POSITION");
+        }
         approvedAdapters[adapter] = allowed;
         emit AdapterApproval(adapter, allowed);
+    }
+
+    function setStrategyAdapter(address adapter) external onlyOwner {
+        require(adapter == address(0) || approvedAdapters[adapter], "ADAPTER_NOT_APPROVED");
+        if (strategyAdapter != address(0) && strategyAdapter != adapter) {
+            require(!IManagedStrategyAdapter(strategyAdapter).hasPosition(address(this)), "ACTIVE_STRATEGY_POSITION");
+        }
+        strategyAdapter = adapter;
+        emit StrategyAdapterSet(adapter);
     }
 
     /// @notice Funds one approved adapter with the vault asset and executes a typed action.
@@ -216,6 +251,7 @@ contract ElliquidVault {
         require(actionKey != bytes32(0), "BAD_ACTION_KEY");
         require(!actionKeyUsed[actionKey], "ACTION_ALREADY_USED");
         require(approvedAdapters[adapter], "ADAPTER_NOT_APPROVED");
+        require(adapter == strategyAdapter, "NOT_STRATEGY_ADAPTER");
         uint256 idleAssets = asset.balanceOf(address(this));
         require(assetsToFund <= idleAssets, "INSUFFICIENT_LIQUIDITY");
         require(assetsToFund <= (idleAssets * maxAdapterFundingBps) / 10000, "ADAPTER_FUND_LIMIT");
@@ -257,15 +293,23 @@ contract ElliquidVault {
     /// @notice Reports the externally managed NAV used for share pricing.
     /// @dev Only an approved adapter may report; an adapter cannot be used by an unapproved vault.
     function reportManagedAssets(uint256 managedAssets) external {
-        require(approvedAdapters[msg.sender], "ADAPTER_NOT_APPROVED");
+        require(approvedAdapters[msg.sender] && msg.sender == strategyAdapter, "ADAPTER_NOT_ACTIVE");
+        _syncManagedAssets(managedAssets);
+    }
 
+    function _syncManagedAssets(uint256 managedAssets) internal {
         if (totalShares > 0) {
             require(managedAssets > 0, "ZERO_NAV");
         }
 
         if (managedAssets < totalManagedAssets && totalManagedAssets > 0) {
             uint256 lossBps = (totalManagedAssets - managedAssets) * 10000 / totalManagedAssets;
-            require(lossBps <= maxStrategyLossBps, "LOSS_CIRCUIT_BREAKER");
+            if (lossBps > maxStrategyLossBps) {
+                // Record the actual NAV and pause further strategy execution; do not block exits.
+                strategyPaused = true;
+                emit StrategyPaused(true);
+                emit StrategyLossLimitExceeded(lossBps, maxStrategyLossBps);
+            }
         }
 
         totalManagedAssets = managedAssets;
