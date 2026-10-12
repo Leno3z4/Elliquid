@@ -139,7 +139,7 @@ contract ElliquidPool {
         require(recipient != address(0) && recipient != address(this), "BAD_RECIPIENT");
         require(amount0Desired > 0 && amount1Desired > 0, "ZERO_AMOUNT");
         require(amount0Desired <= type(uint112).max && amount1Desired <= type(uint112).max, "AMOUNT_TOO_LARGE");
-        _requireSynced();
+        _syncBalances();
 
         if (totalSupply == 0) {
             amount0 = amount0Desired;
@@ -254,7 +254,7 @@ contract ElliquidPool {
         require(recipient != address(0) && recipient != address(this), "BAD_RECIPIENT");
         require(amountIn > 0 && amountIn <= type(uint112).max, "BAD_AMOUNT");
         require(tokenIn == token0 || tokenIn == token1, "BAD_TOKEN_IN");
-        _requireSynced();
+        _syncBalances();
         return _executeSwap(tokenIn, amountIn, amountOutMin, recipient);
     }
 
@@ -322,9 +322,12 @@ contract ElliquidPool {
         );
     }
 
-    function _requireSynced() internal view {
-        require(IERC20Pool(token0).balanceOf(address(this)) == reserve0, "SYNC_REQUIRED0");
-        require(IERC20Pool(token1).balanceOf(address(this)) == reserve1, "SYNC_REQUIRED1");
+    function _syncBalances() internal {
+        uint256 balance0 = IERC20Pool(token0).balanceOf(address(this));
+        uint256 balance1 = IERC20Pool(token1).balanceOf(address(this));
+        if (balance0 != reserve0 || balance1 != reserve1) {
+            _update(balance0, balance1);
+        }
     }
 
     function _update(uint256 balance0, uint256 balance1) internal {
