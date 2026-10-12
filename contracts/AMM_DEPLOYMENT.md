@@ -26,6 +26,21 @@ Example test assets to verify on-chain before use:
 
 These are test-only addresses, not mainnet assets. Confirm that each token has code, expected decimals and working balanceOf / transfer / transferFrom behavior before allowlisting it. Start with a small amount.
 
+## Deploy with Foundry (repeatable)
+
+The repository includes `script/DeployElliquidAMM.s.sol`. Set these values in a local, untracked Foundry environment file or shell environment:
+
+- `AMM_OWNER`: dedicated Elysium testnet admin address.
+- `AMM_DEFAULT_FEE_BPS`: `30` for a 0.30% default fee (100 = 1.00%, the immutable safety ceiling).
+
+Run from the `contracts` directory:
+
+```sh
+forge script script/DeployElliquidAMM.s.sol:DeployElliquidAMM --rpc-url elysium_testnet --broadcast --verify
+```
+
+Only use `--verify` if verification is configured for the Elysium explorer; otherwise omit it and verify from the explorer's contract verification workflow. Keep your signer private key outside the repository and use a testnet-only wallet. Record both deployed addresses from the broadcast output.
+
 ## Remix deployment order
 
 Compile with Solidity 0.8.24 and the optimizer enabled.
