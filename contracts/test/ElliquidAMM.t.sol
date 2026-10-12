@@ -265,6 +265,33 @@ contract ElliquidAMMTest is Test {
         );
     }
 
+    function testFirstLiquidityMintIncludesPreexistingDonations() public {
+        tokenA.transfer(address(poolAB), 1 ether);
+        tokenB.transfer(address(poolAB), 1 ether);
+
+        (,, uint256 quotedShares) = router.previewAddLiquidity(
+            address(tokenA),
+            address(tokenB),
+            100 ether,
+            100 ether
+        );
+
+        (, , uint256 mintedShares) = router.addLiquidity(
+            address(tokenA),
+            address(tokenB),
+            100 ether,
+            100 ether,
+            100 ether,
+            100 ether,
+            quotedShares,
+            address(this),
+            block.timestamp + 1 days
+        );
+
+        assertEq(mintedShares, quotedShares, "INITIAL_SHARE_PREVIEW_MISMATCH");
+        assertEq(mintedShares, 101 ether - 1000, "DONATION_NOT_ACCOUNTED");
+    }
+
     function testFuzz_ConstantProductInvariantDoesNotDecrease(uint96 rawAmount) public {
         _seed(address(tokenA), address(tokenB));
         uint256 amountIn = bound(uint256(rawAmount), 1e12, 5 ether);

@@ -97,7 +97,10 @@ contract ElliquidPool {
         require(amount0Desired > 0 && amount1Desired > 0, "ZERO_AMOUNT");
         require(amount0Desired <= type(uint112).max && amount1Desired <= type(uint112).max, "AMOUNT_TOO_LARGE");
         if (totalSupply == 0) {
-            uint256 root = _sqrt(amount0Desired * amount1Desired);
+            uint256 initial0 = IERC20Pool(token0).balanceOf(address(this)) + amount0Desired;
+            uint256 initial1 = IERC20Pool(token1).balanceOf(address(this)) + amount1Desired;
+            require(initial0 <= type(uint112).max && initial1 <= type(uint112).max, "RESERVE_OVERFLOW");
+            uint256 root = _sqrt(initial0 * initial1);
             if (root <= MINIMUM_LIQUIDITY) return (amount0Desired, amount1Desired, 0);
             return (amount0Desired, amount1Desired, root - MINIMUM_LIQUIDITY);
         }
@@ -171,7 +174,7 @@ contract ElliquidPool {
         require(after1 >= before1 && after1 - before1 == amount1, "UNSUPPORTED_TOKEN1");
 
         if (totalSupply == 0) {
-            uint256 root = _sqrt(amount0 * amount1);
+            uint256 root = _sqrt(after0 * after1);
             require(root > MINIMUM_LIQUIDITY, "INSUFFICIENT_INITIAL_LIQUIDITY");
             _mint(LOCKED_LIQUIDITY, MINIMUM_LIQUIDITY);
             shares = root - MINIMUM_LIQUIDITY;
