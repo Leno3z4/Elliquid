@@ -17,6 +17,7 @@ const PAGE_SIZE = 10;
 
 const factoryAbi = parseAbi([
   "function owner() view returns (address)",
+  "function pauseGuardian() view returns (address)",
   "function paused() view returns (bool)",
   "function poolCount() view returns (uint256)",
   "function getPools(uint256 start, uint256 limit) view returns (address[] page)",
@@ -117,6 +118,7 @@ export function ElliquidPools() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [factoryOwner, setFactoryOwner] = useState<Address | null>(null);
+  const [factoryGuardian, setFactoryGuardian] = useState<Address | null>(null);
   const [protocolPaused, setProtocolPaused] = useState<boolean | null>(null);
   const [selectedAddress, setSelectedAddress] = useState<string>("");
   const [walletLpBalance, setWalletLpBalance] = useState<bigint | null>(null);
@@ -139,6 +141,8 @@ export function ElliquidPools() {
     () => pools.find((pool) => pool.address.toLowerCase() === selectedAddress.toLowerCase()) ?? null,
     [pools, selectedAddress],
   );
+  const isFactoryOwner = Boolean(wallet && factoryOwner && wallet.toLowerCase() === factoryOwner.toLowerCase());
+  const isFactoryGuardian = Boolean(wallet && factoryGuardian && wallet.toLowerCase() === factoryGuardian.toLowerCase());
 
   const waitForTransaction = useCallback(async (hash: Hash) => {
     if (!client) throw new Error("Elysium RPC client is unavailable.");
@@ -164,7 +168,7 @@ export function ElliquidPools() {
     }
 
     try {
-      const [count, addresses, ownerAddress, paused] = await Promise.all([
+      const [count, addresses, ownerAddress, guardianAddress, paused] = await Promise.all([
         client.readContract({ address: factoryAddress, abi: factoryAbi, functionName: "poolCount" }),
         client.readContract({
           address: factoryAddress,
@@ -173,6 +177,7 @@ export function ElliquidPools() {
           args: [BigInt(from), BigInt(PAGE_SIZE)],
         }),
         client.readContract({ address: factoryAddress, abi: factoryAbi, functionName: "owner" }),
+        client.readContract({ address: factoryAddress, abi: factoryAbi, functionName: "pauseGuardian" }),
         client.readContract({ address: factoryAddress, abi: factoryAbi, functionName: "paused" }),
       ]);
 
@@ -218,6 +223,7 @@ export function ElliquidPools() {
       });
 
       setFactoryOwner(ownerAddress);
+      setFactoryGuardian(guardianAddress);
       setProtocolPaused(paused);
       setTotalPools(count);
       setPools((current) => append ? [...current, ...pageRows] : pageRows);
@@ -365,8 +371,12 @@ export function ElliquidPools() {
     try {
       if (!configured || !factoryAddress) throw new Error("Configure the native pool factory address first.");
       requireWalletAndChain();
-      if (!factoryOwner || wallet?.toLowerCase() !== factoryOwner.toLowerCase()) {
-        throw new Error("Only the factory owner can change protocol pause state.");
+      const callerIsOwner = Boolean(wallet && factoryOwner && wallet.toLowerCase() === factoryOwner.toLowerCase());
+      const callerIsGuardian = Boolean(wallet && factoryGuardian && wallet.toLowerCase() === factoryGuardian.toLowerCase());
+      if (paused ? (!callerIsOwner && !callerIsGuardian) : !callerIsOwner) {
+        throw new Error(paused
+          ? "Only the factory owner or pause guardian can emergency-pause the protocol."
+          : "Only the factory owner can unpause the protocol.");
       }
       const hash = await writeContractAsync({
         address: factoryAddress,
@@ -621,14 +631,14 @@ export function ElliquidPools() {
           <div><span>Network</span><strong>{chainId === ELYSIUM_TESTNET_ID ? "Elysium Testnet" : "Switch network"}</strong></div>
           <div><span>Protocol status</span><strong className={protocolPaused ? "amm-danger" : "amm-ok"}>{protocolPaused === null ? "Reading…" : protocolPaused ? "Paused" : "Active"}</strong></div>
         </div>
-        {factoryOwner && wallet?.toLowerCase() === factoryOwner.toLowerCase() && (
+        {(isFactoryOwner || isFactoryGuardian) && (
           <div className="amm-actions">
             <button
               className={protocolPaused ? "amm-button secondary" : "amm-button danger"}
               onClick={() => void setProtocolPause(!protocolPaused)}
-              disabled={busy || isPending || protocolPaused === null}
+              disabled={busy || isPending || protocolPaused === null || (protocolPaused === true && !isFactoryOwner)}
             >
-              {protocolPaused ? "Unpause protocol" : "Emergency pause"}
+              {protocolPaused ? (isFactoryOwner ? "Unpause protocol" : "Paused · owner must unpause") : "Emergency pause"}
             </button>
           </div>
         )}
@@ -669,7 +679,8 @@ export function ElliquidPools() {
             {isPending ? "Confirm in wallet…" : "Create pool"}
           </button>
         </div>
-        {factoryOwner && <div className="section-meta">Factory owner: {shortAddress(factoryOwner)} {wallet?.toLowerCase() === factoryOwner.toLowerCase() ? "· owner controls enabled" : "· token allowlisting is owner-only"}</div>}
+        {factoryOwner && <div className="section-meta">Factory owner: {shortAddress(factoryOwner)} {isFactoryOwner ? "· owner controls enabled" : "· token allowlisting is owner-only"}</div>}
+        {factoryGuardian && <div className="section-meta">Emergency pause guardian: {shortAddress(factoryGuardian)} · may pause, cannot unpause or change pool policy.</div>}
       </section>
 
       <div className="amm-layout">
