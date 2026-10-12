@@ -81,6 +81,19 @@ function messageOf(error: unknown) {
   return String(error).slice(0, 240);
 }
 
+async function mapInBatches<T, R>(
+  items: readonly T[],
+  batchSize: number,
+  mapper: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const result: R[] = [];
+  for (let offset = 0; offset < items.length; offset += batchSize) {
+    const batch = items.slice(offset, offset + batchSize);
+    result.push(...await Promise.all(batch.map(mapper)));
+  }
+  return result;
+}
+
 export function ElliquidPools() {
   const factoryAddressRaw = process.env.NEXT_PUBLIC_ELLIQUID_POOL_FACTORY_ADDRESS?.trim() ?? "";
   const routerAddressRaw = process.env.NEXT_PUBLIC_ELLIQUID_ROUTER_ADDRESS?.trim() ?? "";
@@ -160,7 +173,8 @@ export function ElliquidPools() {
         client.readContract({ address: factoryAddress, abi: factoryAbi, functionName: "paused" }),
       ]);
 
-      const pageRows = await Promise.all(addresses.map(async (poolAddress) => {
+      // Bound RPC burst size for public/testnet providers; do not fan out every pool at once.
+      const pageRows = await mapInBatches(addresses, 2, async (poolAddress) => {
         const [token0, token1, reserves, totalSupply, fee] = await Promise.all([
           client.readContract({ address: poolAddress, abi: poolAbi, functionName: "token0" }),
           client.readContract({ address: poolAddress, abi: poolAbi, functionName: "token1" }),
@@ -194,7 +208,7 @@ export function ElliquidPools() {
           totalSupply,
           feeBps: Number(fee),
         } satisfies PoolInfo;
-      }));
+      });
 
       setFactoryOwner(ownerAddress);
       setProtocolPaused(paused);
