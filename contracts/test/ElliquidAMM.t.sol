@@ -31,6 +31,69 @@ contract FalseReturnERC20 {
     }
 }
 
+contract ReentrantERC20 {
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+
+    address public attackPool;
+    bool public attackEnabled;
+    bool public reentryAttempted;
+    bool public reentrySucceeded;
+
+    constructor() {
+        balanceOf[msg.sender] = 1_000_000 ether;
+    }
+
+    function setAttackPool(address pool, bool enabled) external {
+        attackPool = pool;
+        attackEnabled = enabled;
+        reentryAttempted = false;
+        reentrySucceeded = false;
+    }
+
+    function approve(address spender, uint256 amount) external returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        return true;
+    }
+
+    function transfer(address to, uint256 amount) external returns (bool) {
+        _transfer(msg.sender, to, amount);
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        if (attackEnabled && msg.sender == attackPool) {
+            reentryAttempted = true;
+            (bool ok,) = attackPool.call(
+                abi.encodeWithSignature(
+                    "swapExactInput(address,uint256,uint256,address,uint256)",
+                    address(this),
+                    1 ether,
+                    0,
+                    to,
+                    block.timestamp + 1 days
+                )
+            );
+            reentrySucceeded = ok;
+        }
+
+        uint256 allowed = allowance[from][msg.sender];
+        if (allowed != type(uint256).max) {
+            require(allowed >= amount, "ALLOWANCE");
+            allowance[from][msg.sender] = allowed - amount;
+        }
+        _transfer(from, to, amount);
+        return true;
+    }
+
+    function _transfer(address from, address to, uint256 amount) internal {
+        require(to != address(0), "ZERO");
+        require(balanceOf[from] >= amount, "BALANCE");
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount;
+    }
+}
+
 contract ElliquidAMMTest is Test {
     MockERC20 internal tokenA;
     MockERC20 internal tokenB;
@@ -391,6 +454,43 @@ contract ElliquidAMMTest is Test {
 
         vm.expectRevert(abi.encodeWithSignature("Error(string)", "OWNER"));
         factory.setPaused(true);
+    }
+
+    function testReentrantTokenCannotReenterPoolSwap() public {
+        ReentrantERC20 attackToken = new ReentrantERC20();
+        factory.setTokenAllowed(address(attackToken), true);
+        ElliquidPool attackPool = ElliquidPool(factory.createPool(address(tokenA), address(attackToken)));
+
+        attackToken.approve(address(router), type(uint256).max);
+        router.addLiquidity(
+            address(tokenA),
+            address(attackToken),
+            100 ether,
+            100 ether,
+            100 ether,
+            100 ether,
+            1,
+            address(this),
+            block.timestamp + 1 days
+        );
+
+        attackToken.setAttackPool(address(attackPool), true);
+        address[] memory path = new address[](2);
+        path[0] = address(attackToken);
+        path[1] = address(tokenA);
+        uint256 beforeBalance = tokenA.balanceOf(address(this));
+
+        router.swapExactTokensForTokens(
+            1 ether,
+            0,
+            path,
+            address(this),
+            block.timestamp + 1 days
+        );
+
+        assertTrue(attackToken.reentryAttempted, "REENTRY_NOT_ATTEMPTED");
+        assertFalse(attackToken.reentrySucceeded, "REENTRY_SUCCEEDED");
+        assertGt(tokenA.balanceOf(address(this)), beforeBalance, "OUTER_SWAP_FAILED");
     }
 
     function testFalseReturningTokenFailsClosed() public {
