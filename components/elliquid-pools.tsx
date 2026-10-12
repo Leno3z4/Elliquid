@@ -233,7 +233,7 @@ export function ElliquidPools() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!client || !routerAddress || !selectedPool || !swapAmountInput.trim()) {
+    if (!client || !routerAddress || !selectedPool || !selectedPool.metadataOk || !swapAmountInput.trim()) {
       setSwapQuote(null);
       setQuoteError(null);
       setQuoteLoading(false);
@@ -635,7 +635,7 @@ export function ElliquidPools() {
               <button className="amm-button secondary" onClick={() => void allowToken(tokenBInput)} disabled={isPending || busy || !isAddress(tokenBInput)}>Allowlist token B</button>
             </>
           )}
-          <button className="amm-button" onClick={() => void createPool()} disabled={isPending || busy || !wallet}>
+          <button className="amm-button" onClick={() => void createPool()} disabled={isPending || busy || !wallet || protocolPaused === true}>
             {isPending ? "Confirm in wallet…" : "Create pool"}
           </button>
         </div>
