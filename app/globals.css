@@ -198,3 +198,8 @@ h1 { font-size: clamp(30px, 4vw, 52px); line-height: 1; margin: 0; letter-spacin
 .amm-quote { display: grid; gap: 5px; padding: 12px; border: 1px solid rgba(141,255,154,.22); border-radius: 10px; background: rgba(141,255,154,.035); }
 .amm-quote strong { color: #d8ffdd; font-size: 12px; }
 .amm-quote span { color: var(--muted); font-size: 10px; overflow-wrap: anywhere; }
+
+.amm-lp-balance { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #0b1219; }
+.amm-lp-balance span { color: var(--muted); font-size: 10px; }
+.amm-lp-balance strong { font-size: 12px; text-align: right; }
+.amm-lp-balance button { grid-column: 1 / -1; justify-self: start; }
