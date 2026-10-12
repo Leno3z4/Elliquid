@@ -22,9 +22,9 @@ Example test assets to verify on-chain before use:
 | Token | Address | Decimals | Notes |
 |---|---|---:|---|
 | Bridged test USDC | 0x7D29d8047B905000459c0E80c34a26CeedcB47b2 | 6 | Testnet representation, not real US dollars |
-| Example WHYPE wrapper | 0xA5b72796E5bf80443DC134F3c8a1cc97dcCC39B9 | 18 | Verify contract bytecode and token metadata before use |
+| WHYPE candidate | 0xCD57F65c2B0e5881CFC2E609F7CD53b746E1F234 | Query on-chain | An independent Elysium testnet tracker currently indexes this address as WHYPE; it is not an official allowlist |
 
-These are test-only addresses, not mainnet assets. Confirm that each token has code, expected decimals and working balanceOf / transfer / transferFrom behavior before allowlisting it. Start with a small amount.
+These are testnet assets, not dollar-backed guarantees or mainnet assets. An independent tracker lists the USDC and WHYPE addresses above, but its labels are not proof of authenticity: https://elysium-testnet.vercel.app/. Before allowlisting either token, inspect its explorer contract and on-chain bytecode, call symbol() and decimals(), and test balanceOf / transfer / transferFrom with a minimal amount. Confirm mint/admin controls and that it is the expected asset. Do not allowlist based on symbol alone.
 
 ## Deploy with Foundry (repeatable)
 
@@ -36,10 +36,10 @@ The repository includes `script/DeployElliquidAMM.s.sol`. Set these values in a 
 Run from the `contracts` directory:
 
 ```sh
-forge script script/DeployElliquidAMM.s.sol:DeployElliquidAMM --rpc-url elysium_testnet --broadcast --verify
+forge script script/DeployElliquidAMM.s.sol:DeployElliquidAMM --rpc-url elysium_testnet --broadcast --private-key "$ELYSIUM_TESTNET_PRIVATE_KEY"
 ```
 
-Only use `--verify` if verification is configured for the Elysium explorer; otherwise omit it and verify from the explorer's contract verification workflow. Keep your signer private key outside the repository and use a testnet-only wallet. Record both deployed addresses from the broadcast output.
+Use a testnet-only deployer, set `AMM_OWNER` to the wallet or multisig that should own the factory, and keep `ELYSIUM_TESTNET_PRIVATE_KEY` in your shell/secret manager—not in GitHub source, `.env.example`, frontend variables or chat. If explorer verification is properly configured, add `--verify` and its API key as a local environment secret; otherwise verify each contract through the explorer workflow. Record both deployed addresses from the broadcast output. The deployer and AMM_OWNER should normally be the same test wallet for the demo.
 
 ## Remix deployment order
 
