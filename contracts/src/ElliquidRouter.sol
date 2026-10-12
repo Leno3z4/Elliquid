@@ -31,6 +31,39 @@ contract ElliquidRouter {
         factory = _factory;
     }
 
+    function previewAddLiquidity(
+        address tokenA,
+        address tokenB,
+        uint256 amountADesired,
+        uint256 amountBDesired
+    ) external view returns (uint256 amountA, uint256 amountB, uint256 shares) {
+        address poolAddress = factory.getPool(tokenA, tokenB);
+        require(poolAddress != address(0), "POOL_NOT_FOUND");
+        ElliquidPool pool = ElliquidPool(poolAddress);
+        bool aIs0 = tokenA == pool.token0();
+        (uint256 amount0, uint256 amount1, uint256 quotedShares) = pool.previewAddLiquidity(
+            aIs0 ? amountADesired : amountBDesired,
+            aIs0 ? amountBDesired : amountADesired
+        );
+        amountA = aIs0 ? amount0 : amount1;
+        amountB = aIs0 ? amount1 : amount0;
+        shares = quotedShares;
+    }
+
+    function previewRemoveLiquidity(address tokenA, address tokenB, uint256 shares)
+        external
+        view
+        returns (uint256 amountA, uint256 amountB)
+    {
+        address poolAddress = factory.getPool(tokenA, tokenB);
+        require(poolAddress != address(0), "POOL_NOT_FOUND");
+        ElliquidPool pool = ElliquidPool(poolAddress);
+        bool aIs0 = tokenA == pool.token0();
+        (uint256 amount0, uint256 amount1) = pool.previewRemoveLiquidity(shares);
+        amountA = aIs0 ? amount0 : amount1;
+        amountB = aIs0 ? amount1 : amount0;
+    }
+
     function addLiquidity(
         address tokenA,
         address tokenB,
