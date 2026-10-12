@@ -336,6 +336,25 @@ contract ElliquidAMMTest is Test {
         assertEq(tokenB.balanceOf(address(this)), outputBefore, "OUTPUT_NOT_ATOMIC");
     }
 
+    function testRouterSupportsV2CompatibleLiquiditySignature() public {
+        _seed(address(tokenA), address(tokenB));
+
+        (uint256 amountA, uint256 amountB, uint256 shares) = router.addLiquidity(
+            address(tokenA),
+            address(tokenB),
+            10 ether,
+            10 ether,
+            10 ether,
+            10 ether,
+            address(this),
+            block.timestamp + 1 days
+        );
+
+        assertEq(amountA, 10 ether, "V2_AMOUNT_A");
+        assertEq(amountB, 10 ether, "V2_AMOUNT_B");
+        assertGt(shares, 0, "V2_SHARES");
+    }
+
     function testPoolPaginationIsBounded() public {
         address[] memory page = factory.getPools(0, 50);
         assertEq(page.length, 1);
