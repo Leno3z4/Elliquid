@@ -69,6 +69,21 @@ contract MarketLabPoolAdapter {
 
     uint256 private _locked = 1;
 
+    struct PositionValue {
+        uint256 reserve0;
+        uint256 reserve1;
+        uint256 supply;
+        uint256 shares;
+        uint256 dust;
+        uint256 claim0;
+        uint256 claim1;
+        uint256 assetClaim;
+        uint256 otherClaim;
+        uint256 reserveInAfter;
+        uint256 reserveOutAfter;
+        uint256 otherToSell;
+    }
+
     event OwnershipTransferStarted(address indexed owner, address indexed pendingOwner);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event VaultApproval(address indexed vault, bool approved);
@@ -225,45 +240,48 @@ contract MarketLabPoolAdapter {
     function previewManagedAssets(address vault) public view returns (uint256 managedAssets) {
         address assetToken = IMLVault(vault).asset();
         managedAssets = IMLToken(assetToken).balanceOf(vault);
-
         address poolAddress = positionPool[vault];
-        if (poolAddress == address(0)) return managedAssets;
+        if (poolAddress != address(0)) {
+            managedAssets += _previewPositionValue(vault, assetToken, poolAddress);
+        }
+    }
 
+    function _previewPositionValue(
+        address vault,
+        address assetToken,
+        address poolAddress
+    ) internal view returns (uint256 value) {
         IMarketLabPool pool = IMarketLabPool(poolAddress);
-        uint256 shares = positionShares[vault];
-        uint256 dust = outputDustByVault[vault];
-        if (shares == 0 && dust == 0) return managedAssets;
+        PositionValue memory p;
+        p.shares = positionShares[vault];
+        p.dust = outputDustByVault[vault];
+        if (p.shares == 0 && p.dust == 0) return 0;
 
-        (uint256 reserve0, uint256 reserve1) = pool.getReserves();
-        uint256 supply = pool.totalSupply();
-        if (supply == 0) return managedAssets;
+        (p.reserve0, p.reserve1) = pool.getReserves();
+        p.supply = pool.totalSupply();
+        if (p.supply == 0) return 0;
 
-        uint256 claim0 = shares == 0 ? 0 : shares * reserve0 / supply;
-        uint256 claim1 = shares == 0 ? 0 : shares * reserve1 / supply;
-        uint256 assetClaim;
-        uint256 otherClaim;
-        uint256 reserveInAfter;
-        uint256 reserveOutAfter;
-
+        p.claim0 = p.shares == 0 ? 0 : p.shares * p.reserve0 / p.supply;
+        p.claim1 = p.shares == 0 ? 0 : p.shares * p.reserve1 / p.supply;
         if (assetToken == pool.token0()) {
-            assetClaim = claim0;
-            otherClaim = claim1;
-            reserveInAfter = reserve1 - claim1;
-            reserveOutAfter = reserve0 - claim0;
+            p.assetClaim = p.claim0;
+            p.otherClaim = p.claim1;
+            p.reserveInAfter = p.reserve1 - p.claim1;
+            p.reserveOutAfter = p.reserve0 - p.claim0;
         } else if (assetToken == pool.token1()) {
-            assetClaim = claim1;
-            otherClaim = claim0;
-            reserveInAfter = reserve0 - claim0;
-            reserveOutAfter = reserve1 - claim1;
+            p.assetClaim = p.claim1;
+            p.otherClaim = p.claim0;
+            p.reserveInAfter = p.reserve0 - p.claim0;
+            p.reserveOutAfter = p.reserve1 - p.claim1;
         } else {
-            return managedAssets;
+            return 0;
         }
 
-        managedAssets += assetClaim;
-        uint256 otherToSell = otherClaim + dust;
-        if (otherToSell != 0) {
-            managedAssets += _quoteAgainstReserves(
-                otherToSell, reserveInAfter, reserveOutAfter, pool.feeBps()
+        value = p.assetClaim;
+        p.otherToSell = p.otherClaim + p.dust;
+        if (p.otherToSell != 0) {
+            value += _quoteAgainstReserves(
+                p.otherToSell, p.reserveInAfter, p.reserveOutAfter, pool.feeBps()
             );
         }
     }
