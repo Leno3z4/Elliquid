@@ -111,6 +111,23 @@ contract MockAdapter {
         calls++;
         return abi.encode(calls);
     }
+
+    function syncManagedAssets(address vault) external returns (uint256 managedAssets) {
+        managedAssets = previewManagedAssets(vault);
+        ElliquidVault(vault).reportManagedAssets(managedAssets);
+    }
+
+    function previewManagedAssets(address vault) public view returns (uint256) {
+        return MockERC20(address(ElliquidVault(vault).asset())).balanceOf(vault);
+    }
+
+    function withdrawToVault(uint256) external pure returns (uint256) {
+        return 0;
+    }
+
+    function hasPosition(address) external pure returns (bool) {
+        return false;
+    }
 }
 
 contract ElliquidVaultAdapterTest {
@@ -130,6 +147,7 @@ contract ElliquidVaultAdapterTest {
         adapter = new MockAdapter();
         token.approve(address(vault), type(uint256).max);
         vault.setAdapterAllowed(address(adapter), true);
+        vault.setStrategyAdapter(address(adapter));
     }
 
     function testAdapterActionIsIdempotent() public {
@@ -228,6 +246,7 @@ contract ElliquidVaultAdapterTest {
     }
 
     function testAdapterCannotBeReusedAfterRemoval() public {
+        vault.setStrategyAdapter(address(0));
         vault.setAdapterAllowed(address(adapter), false);
 
         (bool ok,) = address(vault).call(
