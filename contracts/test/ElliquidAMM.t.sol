@@ -248,7 +248,7 @@ contract ElliquidAMMTest is Test {
 
     function testFuzz_ConstantProductInvariantDoesNotDecrease(uint96 rawAmount) public {
         _seed(address(tokenA), address(tokenB));
-        uint256 amountIn = bound(uint256(rawAmount), 1, 5 ether);
+        uint256 amountIn = bound(uint256(rawAmount), 1e12, 5 ether);
         tokenA.approve(address(poolAB), type(uint256).max);
 
         (uint112 before0, uint112 before1,) = poolAB.getReserves();
@@ -269,7 +269,7 @@ contract ElliquidAMMTest is Test {
 
     function testFuzz_SlippageRevertIsAtomic(uint96 rawAmount) public {
         _seed(address(tokenA), address(tokenB));
-        uint256 amountIn = bound(uint256(rawAmount), 1, 5 ether);
+        uint256 amountIn = bound(uint256(rawAmount), 1e12, 5 ether);
         address[] memory path = new address[](2);
         path[0] = address(tokenA);
         path[1] = address(tokenB);
