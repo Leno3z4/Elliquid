@@ -741,6 +741,9 @@ export function ElliquidPools() {
 
             <div className="amm-operation">
               <div className="amm-operation-title">Add liquidity</div>
+              {selectedPool.totalSupply === 0n && (
+                <div className="amm-alert error">You are the first liquidity provider. Your deposit amounts set the pool's initial price. Check the ratio carefully; this pool does not verify it against an external market price.</div>
+              )}
               <div className="amm-two-inputs">
                 <label>{selectedPool.symbol0} amount
                   <input inputMode="decimal" value={amount0Input} onChange={(event) => setAmount0Input(event.target.value)} placeholder="0.0" />
@@ -755,11 +758,18 @@ export function ElliquidPools() {
 
             <div className="amm-operation">
               <div className="amm-operation-title">Remove liquidity</div>
+              {wallet && walletLpBalance !== null && (
+                <div className="amm-lp-balance">
+                  <span>Your LP share balance</span>
+                  <strong>{displayAmount(walletLpBalance, 18)} ELL-LP</strong>
+                  <button type="button" className="amm-button secondary" onClick={() => setRemoveSharesInput(formatUnits(walletLpBalance, 18))} disabled={walletLpBalance === 0n}>Use full balance</button>
+                </div>
+              )}
               <label>LP shares (18 decimals)
                 <input inputMode="decimal" value={removeSharesInput} onChange={(event) => setRemoveSharesInput(event.target.value)} placeholder="0.0" />
               </label>
-              <div className="section-meta">Withdrawals remain available if the protocol is paused. You must own the LP shares you redeem.</div>
-              <button className="amm-button secondary" onClick={() => void removeLiquidity()} disabled={isPending || busy || !wallet || !selectedPool.metadataOk}>{isPending ? "Confirm in wallet…" : "Approve & remove liquidity"}</button>
+              <div className="section-meta">Withdrawals remain available during emergency pause. LP exits remain enabled even if a token's symbol/decimal metadata is unavailable.</div>
+              <button className="amm-button secondary" onClick={() => void removeLiquidity()} disabled={isPending || busy || !wallet}>{isPending ? "Confirm in wallet…" : "Approve & remove liquidity"}</button>
             </div>
           </> : <div className="empty-state">Select a pool to trade, add liquidity or withdraw LP shares.</div>}
         </section>
