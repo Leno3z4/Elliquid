@@ -78,6 +78,7 @@ contract ElliquidAMMTest is Test {
             block.timestamp + 1 days
         );
         assertGt(tokenB.balanceOf(address(this)), tokenBBefore);
+        poolAB.approve(address(router), type(uint256).max);
 
         (uint256 amountA, uint256 amountB) = router.removeLiquidity(
             address(tokenA),
@@ -154,6 +155,7 @@ contract ElliquidAMMTest is Test {
             address(this),
             block.timestamp + 1 days
         );
+        poolAB.approve(address(router), type(uint256).max);
 
         (uint256 amountA, uint256 amountB) = router.removeLiquidity(
             address(tokenA),
@@ -227,10 +229,10 @@ contract ElliquidAMMTest is Test {
         _seed(address(tokenA), address(tokenB));
         MockERC20(poolAB.token0()).transfer(address(poolAB), 1 ether);
 
-        vm.expectRevert(abi.encodeWithSignature("Error(string)", "SYNC_REQUIRED0"));
         address[] memory path = new address[](2);
         path[0] = poolAB.token0();
         path[1] = poolAB.token1();
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "SYNC_REQUIRED0"));
         router.swapExactTokensForTokens(
             1 ether,
             0,
