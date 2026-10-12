@@ -256,6 +256,7 @@ contract ElliquidPool {
         require(recipient != address(0) && recipient != address(this), "BAD_RECIPIENT");
         require(amountIn > 0 && amountIn <= type(uint112).max, "BAD_AMOUNT");
         require(tokenIn == token0 || tokenIn == token1, "BAD_TOKEN_IN");
+        require(totalSupply > 0, "NO_LIQUIDITY");
         _syncBalances();
         return _executeSwap(tokenIn, amountIn, amountOutMin, recipient);
     }
