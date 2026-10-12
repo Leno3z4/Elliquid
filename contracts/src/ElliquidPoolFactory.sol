@@ -58,6 +58,7 @@ contract ElliquidPoolFactory {
 
     /// @notice Creates a pool for two approved tokens. Pair ordering is deterministic.
     function createPool(address tokenA, address tokenB) external returns (address pool) {
+        require(!paused, "AMM_PAUSED");
         require(tokenA != address(0) && tokenB != address(0), "BAD_TOKEN");
         require(tokenA != tokenB, "SAME_TOKEN");
         require(tokenAllowed[tokenA] && tokenAllowed[tokenB], "TOKEN_NOT_ALLOWED");
