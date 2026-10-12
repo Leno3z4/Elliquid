@@ -540,7 +540,7 @@ export function ElliquidPools() {
                   </button>
                 ))}
               </div>}
-          {hasMore && <button className="amm-button secondary full" onClick={() => void loadPoolPage(nextStart, true)} disabled={loadingMore}>{loadingMore ? "Loading…" : "Load more pools"}</button>}
+          {hasMore && <button className="amm-button secondary full" onClick={() => void loadPoolPage(nextStart, true)} disabled={loadingMore || busy}>{loadingMore ? "Loading…" : "Load more pools"}</button>}
           <div className="section-meta amm-registry-meta">Pool addresses are read from the factory contract, not a placeholder list.</div>
         </section>
 
@@ -570,7 +570,7 @@ export function ElliquidPools() {
                 <input inputMode="decimal" value={swapAmountInput} onChange={(event) => setSwapAmountInput(event.target.value)} placeholder="0.0" />
               </label>
               <div className="section-meta">Output goes to your connected wallet. The router calculates a fresh quote and enforces your minimum output.</div>
-              <button className="amm-button" onClick={() => void swap()} disabled={isPending || busy || !wallet || protocolPaused === true}>{isPending ? "Confirm in wallet…" : "Approve & swap"}</button>
+              <button className="amm-button" onClick={() => void swap()} disabled={isPending || busy || !wallet || protocolPaused === true || selectedPool.totalSupply === 0n}>{isPending ? "Confirm in wallet…" : "Approve & swap"}</button>
             </div>
 
             <div className="amm-operation">
@@ -584,7 +584,7 @@ export function ElliquidPools() {
                 </label>
               </div>
               <div className="section-meta">Approvals are limited to the entered amounts. Excess tokens are refunded; the pool mints LP shares.</div>
-              <button className="amm-button" onClick={() => void addLiquidity()} disabled={isPending || !wallet || protocolPaused === true}>{isPending ? "Confirm in wallet…" : "Approve & add liquidity"}</button>
+              <button className="amm-button" onClick={() => void addLiquidity()} disabled={isPending || busy || !wallet || protocolPaused === true}>{isPending ? "Confirm in wallet…" : "Approve & add liquidity"}</button>
             </div>
 
             <div className="amm-operation">
