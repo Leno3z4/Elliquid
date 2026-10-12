@@ -52,7 +52,7 @@ contract ElliquidRouter {
         return (amount1, amount0, estimatedShares);
     }
 
-    /// @notice Adds liquidity at the current pool ratio and refunds any unused token amounts.
+    /// @notice Adds liquidity with explicit minimum LP shares and refunds unused tokens.
     function addLiquidity(
         address tokenA,
         address tokenB,
@@ -64,6 +64,47 @@ contract ElliquidRouter {
         address recipient,
         uint256 deadline
     ) external lock returns (uint256 amountA, uint256 amountB, uint256 shares) {
+        return _addLiquidity(
+            tokenA, tokenB, amountADesired, amountBDesired,
+            minAmountA, minAmountB, minShares, recipient, deadline
+        );
+    }
+
+    /// @notice V2-compatible overload used by Elliquid's vault adapter.
+    /// @dev Requires at least 99% of the immediately observed LP-share quote.
+    function addLiquidity(
+        address tokenA,
+        address tokenB,
+        uint256 amountADesired,
+        uint256 amountBDesired,
+        uint256 minAmountA,
+        uint256 minAmountB,
+        address recipient,
+        uint256 deadline
+    ) external lock returns (uint256 amountA, uint256 amountB, uint256 shares) {
+        (,, uint256 quotedShares) = this.previewAddLiquidity(
+            tokenA, tokenB, amountADesired, amountBDesired
+        );
+        require(quotedShares > 0, "INSUFFICIENT_SHARES");
+        uint256 minShares = quotedShares * 9_900 / 10_000;
+        if (minShares == 0) minShares = 1;
+        return _addLiquidity(
+            tokenA, tokenB, amountADesired, amountBDesired,
+            minAmountA, minAmountB, minShares, recipient, deadline
+        );
+    }
+
+    function _addLiquidity(
+        address tokenA,
+        address tokenB,
+        uint256 amountADesired,
+        uint256 amountBDesired,
+        uint256 minAmountA,
+        uint256 minAmountB,
+        uint256 minShares,
+        address recipient,
+        uint256 deadline
+    ) private returns (uint256 amountA, uint256 amountB, uint256 shares) {
         require(block.timestamp <= deadline, "EXPIRED");
         _validatePair(tokenA, tokenB);
         require(recipient != address(0) && recipient != address(this), "BAD_RECIPIENT");
@@ -110,6 +151,7 @@ contract ElliquidRouter {
         if (amountBDesired > amountB) {
             _safeTransfer(tokenB, msg.sender, amountBDesired - amountB);
         }
+    
     }
 
     function removeLiquidity(
