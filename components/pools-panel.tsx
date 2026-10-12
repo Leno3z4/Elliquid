@@ -414,7 +414,7 @@ export function PoolsPanel() {
         {mode === "create" ? (
           <div className="pool-action-panel">
             <h3>Create a pair</h3>
-            <p>Only factory-allowlisted tokens can be paired. Use token contracts you have independently verified.</p>
+            <p>Only factory-allowlisted tokens can be paired. Use token contracts you have independently verified. Creating a pair does not fund it; the first liquidity provider sets its starting token ratio and therefore its initial price.</p>
             {admin && tokenA && !allowedA ? (
               <button className="pool-button secondary" disabled={busy || !networkOk || !contractsConfigured} onClick={() => FACTORY && tokenA && submit({ address: FACTORY, abi: factoryAbi, functionName: "setTokenAllowed", args: [tokenA, true], chainId: elysiumTestnet.id })}>Allow Token A</button>
             ) : null}
@@ -460,6 +460,7 @@ export function PoolsPanel() {
         {mode === "add" ? (
           <div className="pool-action-panel">
             <h3>Add liquidity</h3>
+            <div className="pool-alert warning">If this is a new or empty pool, your token ratio establishes its initial exchange price. Check both token addresses and the intended ratio before signing.</div>
             <div className="pool-amount-grid">
               <label className="pool-field"><span>{String(symbolARead.data ?? "Token A")} desired</span><input value={amountAInput} onChange={(event) => setAmountAInput(event.target.value)} inputMode="decimal" /></label>
               <label className="pool-field"><span>{String(symbolBRead.data ?? "Token B")} desired</span><input value={amountBInput} onChange={(event) => setAmountBInput(event.target.value)} inputMode="decimal" /></label>
