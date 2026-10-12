@@ -24,6 +24,7 @@ const ROUTER_VALUE = process.env.NEXT_PUBLIC_ELLIQUID_ROUTER_ADDRESS;
 const FACTORY = FACTORY_VALUE && isAddress(FACTORY_VALUE) ? getAddress(FACTORY_VALUE) : undefined;
 const ROUTER = ROUTER_VALUE && isAddress(ROUTER_VALUE) ? getAddress(ROUTER_VALUE) : undefined;
 const BPS = 10_000n;
+const POOLS_PAGE_SIZE = 20;
 
 const factoryAbi = [
   { type: "function", name: "owner", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
@@ -109,6 +110,8 @@ export function PoolsPanel() {
   const [notice, setNotice] = useState("");
   const [listedPools, setListedPools] = useState<ListedPool[]>([]);
   const [poolListError, setPoolListError] = useState("");
+  const [poolPage, setPoolPage] = useState(0);
+  const [poolRefreshVersion, setPoolRefreshVersion] = useState(0);
 
   const { address: wallet, chainId, isConnected } = useAccount();
   const { switchChain } = useSwitchChain();
@@ -131,16 +134,25 @@ export function PoolsPanel() {
     address: FACTORY ?? ZERO,
     abi: factoryAbi,
     functionName: "allPoolsLength",
-    query: { enabled: Boolean(FACTORY), refetchInterval: 15000 },
+    query: { enabled: Boolean(FACTORY), refetchInterval: 30000 },
   });
   const poolAddressesRead = useReadContract({
     chainId: elysiumTestnet.id,
     address: FACTORY ?? ZERO,
     abi: factoryAbi,
     functionName: "getPools",
-    args: [0n, 50n],
-    query: { enabled: Boolean(FACTORY), refetchInterval: 15000 },
+    args: [BigInt(poolPage * POOLS_PAGE_SIZE), BigInt(POOLS_PAGE_SIZE)],
+    query: { enabled: Boolean(FACTORY), refetchInterval: 30000 },
   });
+  const poolAddresses = (poolAddressesRead.data ?? []) as Address[];
+  const poolAddressKey = poolAddresses.join(",");
+  const totalPoolCount = Number(poolCount.data ?? 0n);
+  const totalPoolPages = Math.max(1, Math.ceil(totalPoolCount / POOLS_PAGE_SIZE));
+
+  useEffect(() => {
+    if (poolPage >= totalPoolPages) setPoolPage(Math.max(0, totalPoolPages - 1));
+  }, [poolPage, totalPoolPages]);
+
   const selectedPoolRead = useReadContract({
     chainId: elysiumTestnet.id,
     address: FACTORY ?? ZERO,
@@ -265,14 +277,14 @@ export function PoolsPanel() {
   const minRemoveB = removeQuote ? removeQuote[1] * BigInt(10000 - slippageBps) / BPS : 0n;
 
   useEffect(() => {
-    if (!client || !poolAddressesRead.data?.length) {
+    if (!client || !poolAddressKey) {
       setListedPools([]);
       setPoolListError("");
       return;
     }
     const activeClient = client;
     let cancelled = false;
-    const addresses = poolAddressesRead.data as Address[];
+    const addresses = poolAddressKey.split(",").filter(Boolean) as Address[];
     async function loadPools() {
       const rows = await Promise.all(addresses.map(async (address): Promise<ListedPool> => {
         const [token0, token1, feeBps, reserves] = await Promise.all([
@@ -307,13 +319,14 @@ export function PoolsPanel() {
       if (!cancelled) setPoolListError("Could not read one or more pool token metadata contracts.");
     });
     return () => { cancelled = true; };
-  }, [client, poolAddressesRead.data]);
+  }, [client, poolAddressKey, poolRefreshVersion]);
 
   useEffect(() => {
     if (receipt.isSuccess && receipt.data?.transactionHash) {
       setNotice("Confirmed transaction: " + receipt.data.transactionHash);
       void poolCount.refetch();
       void poolAddressesRead.refetch();
+      setPoolRefreshVersion((version) => version + 1);
       void selectedPoolRead.refetch();
       void allowedARead.refetch();
       void allowedBRead.refetch();
@@ -491,7 +504,7 @@ export function PoolsPanel() {
 
       <section className="card section">
         <div className="section-head">
-          <div><div className="section-title">Registered pools</div><div className="section-meta">Showing up to the first 50 pools from a paginated on-chain registry.</div></div>
+          <div><div className="section-title">Registered pools</div><div className="section-meta">Browse {POOLS_PAGE_SIZE} pools at a time. Pool metadata loads only when the page changes or you refresh.</div></div>
           <div className="pool-status-line">{poolCount.data?.toString() ?? "—"} total</div>
         </div>
         {!FACTORY ? <div className="empty-state">Configure the verified factory address to display pools.</div> :
@@ -506,6 +519,12 @@ export function PoolsPanel() {
             </div>
           ) : <div className="empty-state">{poolListError || (Number(poolCount.data ?? 0n) > 0 ? "Reading pools…" : "No pools registered yet.")}</div>
         }
+        <div className="pool-pagination">
+          <button className="pool-button secondary" disabled={poolPage <= 0} onClick={() => setPoolPage((page) => Math.max(0, page - 1))}>Previous</button>
+          <span>Page {Math.min(poolPage + 1, totalPoolPages)} of {totalPoolPages}</span>
+          <button className="pool-button secondary" disabled={poolPage + 1 >= totalPoolPages} onClick={() => setPoolPage((page) => Math.min(totalPoolPages - 1, page + 1))}>Next</button>
+          <button className="pool-button secondary" disabled={!FACTORY || poolAddressesRead.isFetching} onClick={() => { void poolCount.refetch(); void poolAddressesRead.refetch(); setPoolRefreshVersion((version) => version + 1); }}>Refresh pools</button>
+        </div>
       </section>
       <div className="pool-disclaimer">Testnet prototype, not audited. Do not deposit valuable assets. LP positions can lose value and pool quotes are not a reliable external price oracle.</div>
     </div>
