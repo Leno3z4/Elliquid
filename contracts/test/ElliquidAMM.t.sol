@@ -488,8 +488,8 @@ contract ElliquidAMMTest is Test {
             block.timestamp + 1 days
         );
 
-        assertTrue(attackToken.reentryAttempted, "REENTRY_NOT_ATTEMPTED");
-        assertFalse(attackToken.reentrySucceeded, "REENTRY_SUCCEEDED");
+        assertTrue(attackToken.reentryAttempted(), "REENTRY_NOT_ATTEMPTED");
+        assertFalse(attackToken.reentrySucceeded(), "REENTRY_SUCCEEDED");
         assertGt(tokenA.balanceOf(address(this)), beforeBalance, "OUTER_SWAP_FAILED");
     }
 
