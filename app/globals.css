@@ -196,3 +196,11 @@ h1 { font-size: clamp(30px, 4vw, 52px); line-height: 1; margin: 0; letter-spacin
   .pool-list-row { align-items: flex-start; flex-direction: column; }
   .pool-reserves { justify-items: start; }
 }
+
+
+.pool-pagination { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; padding-top: 13px; margin-top: 12px; border-top: 1px solid var(--line); }
+.pool-pagination span { margin-right: auto; color: var(--muted); font: 10px "DM Mono", monospace; }
+@media (max-width: 600px) {
+  .pool-pagination { justify-content: stretch; }
+  .pool-pagination .pool-button { flex: 1 1 calc(50% - 8px); }
+}
