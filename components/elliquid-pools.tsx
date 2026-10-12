@@ -64,6 +64,7 @@ type PoolInfo = {
   reserve1: bigint;
   totalSupply: bigint;
   feeBps: number;
+  metadataOk: boolean;
 };
 
 function shortAddress(value: string) {
@@ -188,9 +189,12 @@ export function ElliquidPools() {
             client.readContract({ address: token, abi: erc20Abi, functionName: "symbol" }),
             client.readContract({ address: token, abi: erc20Abi, functionName: "decimals" }),
           ]);
+          const decimals = decimalsResult.status === "fulfilled" ? Number(decimalsResult.value) : -1;
+          const symbol = symbolResult.status === "fulfilled" ? symbolResult.value : "";
           return {
-            symbol: symbolResult.status === "fulfilled" ? symbolResult.value : shortAddress(token),
-            decimals: decimalsResult.status === "fulfilled" ? Number(decimalsResult.value) : 18,
+            symbol: symbol || shortAddress(token),
+            decimals: decimals >= 0 && decimals <= 36 ? decimals : 18,
+            ok: Boolean(symbol) && decimals >= 0 && decimals <= 36,
           };
         };
 
@@ -207,6 +211,7 @@ export function ElliquidPools() {
           reserve1: reserves[1],
           totalSupply,
           feeBps: Number(fee),
+          metadataOk: meta0.ok && meta1.ok,
         } satisfies PoolInfo;
       });
 
@@ -672,6 +677,7 @@ export function ElliquidPools() {
           {selectedPool ? <>
             <div className="section-title">{selectedPool.symbol0} / {selectedPool.symbol1}</div>
             <div className="section-meta">{shortAddress(selectedPool.address)} · immutable {selectedPool.feeBps} bps fee</div>
+            {!selectedPool.metadataOk && <div className="amm-alert error">This token pair does not expose valid ERC-20 symbol/decimals metadata. The UI disables transactions rather than guessing token units.</div>}
             <div className="amm-token-details">
               <div><span>{selectedPool.symbol0} reserve</span><strong>{displayAmount(selectedPool.reserve0, selectedPool.decimals0)}</strong><code>{shortAddress(selectedPool.token0)}</code></div>
               <div><span>{selectedPool.symbol1} reserve</span><strong>{displayAmount(selectedPool.reserve1, selectedPool.decimals1)}</strong><code>{shortAddress(selectedPool.token1)}</code></div>
@@ -700,7 +706,7 @@ export function ElliquidPools() {
                 </> : quoteError ? <span>Quote unavailable: {quoteError}</span> : <span>Enter an amount to preview output and minimum received.</span>}
               </div>
               <div className="section-meta">Quotes are indicative, not guaranteed. The router checks a fresh quote and enforces the minimum output you set when the swap is submitted.</div>
-              <button className="amm-button" onClick={() => void swap()} disabled={isPending || busy || !wallet || protocolPaused === true || selectedPool.totalSupply === 0n}>{isPending ? "Confirm in wallet…" : "Approve & swap"}</button>
+              <button className="amm-button" onClick={() => void swap()} disabled={isPending || busy || !wallet || !selectedPool.metadataOk || protocolPaused === true || selectedPool.totalSupply === 0n}>{isPending ? "Confirm in wallet…" : "Approve & swap"}</button>
             </div>
 
             <div className="amm-operation">
@@ -714,7 +720,7 @@ export function ElliquidPools() {
                 </label>
               </div>
               <div className="section-meta">Approvals are limited to the entered amounts. Excess tokens are refunded; the pool mints LP shares.</div>
-              <button className="amm-button" onClick={() => void addLiquidity()} disabled={isPending || busy || !wallet || protocolPaused === true}>{isPending ? "Confirm in wallet…" : "Approve & add liquidity"}</button>
+              <button className="amm-button" onClick={() => void addLiquidity()} disabled={isPending || busy || !wallet || !selectedPool.metadataOk || protocolPaused === true}>{isPending ? "Confirm in wallet…" : "Approve & add liquidity"}</button>
             </div>
 
             <div className="amm-operation">
@@ -723,7 +729,7 @@ export function ElliquidPools() {
                 <input inputMode="decimal" value={removeSharesInput} onChange={(event) => setRemoveSharesInput(event.target.value)} placeholder="0.0" />
               </label>
               <div className="section-meta">Withdrawals remain available if the protocol is paused. You must own the LP shares you redeem.</div>
-              <button className="amm-button secondary" onClick={() => void removeLiquidity()} disabled={isPending || busy || !wallet}>{isPending ? "Confirm in wallet…" : "Approve & remove liquidity"}</button>
+              <button className="amm-button secondary" onClick={() => void removeLiquidity()} disabled={isPending || busy || !wallet || !selectedPool.metadataOk}>{isPending ? "Confirm in wallet…" : "Approve & remove liquidity"}</button>
             </div>
           </> : <div className="empty-state">Select a pool to trade, add liquidity or withdraw LP shares.</div>}
         </section>
