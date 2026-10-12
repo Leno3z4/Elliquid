@@ -1,0 +1,255 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+import {Test} from "forge-std/Test.sol";
+import {ElliquidPool} from "../src/ElliquidPool.sol";
+import {ElliquidPoolFactory} from "../src/ElliquidPoolFactory.sol";
+import {ElliquidRouter} from "../src/ElliquidRouter.sol";
+import {MockERC20} from "./MockERC20.sol";
+
+contract ElliquidAMMTest is Test {
+    MockERC20 internal tokenA;
+    MockERC20 internal tokenB;
+    MockERC20 internal tokenC;
+    ElliquidPoolFactory internal factory;
+    ElliquidRouter internal router;
+    ElliquidPool internal poolAB;
+
+    function setUp() public {
+        tokenA = new MockERC20("Token A", "TKA", 1_000_000 ether);
+        tokenB = new MockERC20("Token B", "TKB", 1_000_000 ether);
+        tokenC = new MockERC20("Token C", "TKC", 1_000_000 ether);
+        factory = new ElliquidPoolFactory(address(this), 30);
+        factory.setTokenAllowed(address(tokenA), true);
+        factory.setTokenAllowed(address(tokenB), true);
+        router = new ElliquidRouter(factory);
+        poolAB = ElliquidPool(factory.createPool(address(tokenA), address(tokenB)));
+        tokenA.approve(address(router), type(uint256).max);
+        tokenB.approve(address(router), type(uint256).max);
+        tokenC.approve(address(router), type(uint256).max);
+    }
+
+    function _seed(address tokenX, address tokenY) internal {
+        router.addLiquidity(
+            tokenX,
+            tokenY,
+            100 ether,
+            100 ether,
+            100 ether,
+            100 ether,
+            1,
+            address(this),
+            block.timestamp + 1 days
+        );
+    }
+
+    function testFactorySortsAndPreventsDuplicatePools() public {
+        assertEq(factory.getPool(address(tokenA), address(tokenB)), address(poolAB));
+        assertEq(factory.getPool(address(tokenB), address(tokenA)), address(poolAB));
+        assertTrue(factory.isPool(address(poolAB)));
+
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "POOL_EXISTS"));
+        factory.createPool(address(tokenB), address(tokenA));
+    }
+
+    function testFactoryRequiresTokenAllowlist() public {
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "TOKEN_NOT_ALLOWED"));
+        factory.createPool(address(tokenA), address(tokenC));
+    }
+
+    function testAddLiquiditySwapAndRemoveLiquidity() public {
+        _seed(address(tokenA), address(tokenB));
+        uint256 sharesBefore = poolAB.balanceOf(address(this));
+        assertGt(sharesBefore, 0);
+
+        address[] memory path = new address[](2);
+        path[0] = address(tokenA);
+        path[1] = address(tokenB);
+        uint256 quote = router.getAmountsOut(1 ether, path)[1];
+        assertGt(quote, 0.9 ether);
+        assertLt(quote, 1 ether);
+
+        uint256 tokenBBefore = tokenB.balanceOf(address(this));
+        router.swapExactTokensForTokens(
+            1 ether,
+            0.9 ether,
+            path,
+            address(this),
+            block.timestamp + 1 days
+        );
+        assertGt(tokenB.balanceOf(address(this)), tokenBBefore);
+
+        (uint256 amountA, uint256 amountB) = router.removeLiquidity(
+            address(tokenA),
+            address(tokenB),
+            sharesBefore / 2,
+            40 ether,
+            40 ether,
+            address(this),
+            block.timestamp + 1 days
+        );
+        assertGt(amountA, 40 ether);
+        assertGt(amountB, 40 ether);
+        assertEq(poolAB.balanceOf(address(this)), sharesBefore - sharesBefore / 2);
+    }
+
+    function testRouterRefundsExcessLiquidityToMaintainPoolRatio() public {
+        _seed(address(tokenA), address(tokenB));
+        uint256 tokenBBefore = tokenB.balanceOf(address(this));
+
+        (uint256 amountA, uint256 amountB,) = router.addLiquidity(
+            address(tokenA),
+            address(tokenB),
+            10 ether,
+            20 ether,
+            10 ether,
+            10 ether,
+            1,
+            address(this),
+            block.timestamp + 1 days
+        );
+        assertEq(amountA, 10 ether);
+        assertEq(amountB, 10 ether);
+        assertEq(tokenB.balanceOf(address(this)), tokenBBefore - 10 ether);
+    }
+
+    function testMultiHopSwapQuotesAndExecutes() public {
+        factory.setTokenAllowed(address(tokenC), true);
+        factory.createPool(address(tokenB), address(tokenC));
+        _seed(address(tokenA), address(tokenB));
+        _seed(address(tokenB), address(tokenC));
+
+        address[] memory path = new address[](3);
+        path[0] = address(tokenA);
+        path[1] = address(tokenB);
+        path[2] = address(tokenC);
+
+        uint256[] memory quote = router.getAmountsOut(1 ether, path);
+        assertEq(quote.length, 3);
+        assertGt(quote[2], 0.9 ether);
+        uint256 beforeC = tokenC.balanceOf(address(this));
+        uint256[] memory amounts = router.swapExactTokensForTokens(
+            1 ether,
+            0.8 ether,
+            path,
+            address(this),
+            block.timestamp + 1 days
+        );
+        assertEq(amounts.length, 3);
+        assertGt(tokenC.balanceOf(address(this)), beforeC);
+    }
+
+    function testPauseStopsSwapButDoesNotBlockWithdrawals() public {
+        _seed(address(tokenA), address(tokenB));
+        address[] memory path = new address[](2);
+        path[0] = address(tokenA);
+        path[1] = address(tokenB);
+
+        factory.setPaused(true);
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "AMM_PAUSED"));
+        router.swapExactTokensForTokens(
+            1 ether,
+            0,
+            path,
+            address(this),
+            block.timestamp + 1 days
+        );
+
+        (uint256 amountA, uint256 amountB) = router.removeLiquidity(
+            address(tokenA),
+            address(tokenB),
+            poolAB.balanceOf(address(this)) / 2,
+            1,
+            1,
+            address(this),
+            block.timestamp + 1 days
+        );
+        assertGt(amountA, 0);
+        assertGt(amountB, 0);
+    }
+
+    function testMinimumOutputProtectsSwap() public {
+        _seed(address(tokenA), address(tokenB));
+        address[] memory path = new address[](2);
+        path[0] = address(tokenA);
+        path[1] = address(tokenB);
+        uint256 balanceBefore = tokenA.balanceOf(address(this));
+
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "MINIMUM_OUTPUT"));
+        router.swapExactTokensForTokens(
+            1 ether,
+            2 ether,
+            path,
+            address(this),
+            block.timestamp + 1 days
+        );
+        assertEq(tokenA.balanceOf(address(this)), balanceBefore);
+    }
+
+    function testExpiredAddLiquidityReverts() public {
+        vm.warp(100_000);
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "EXPIRED"));
+        router.addLiquidity(
+            address(tokenA),
+            address(tokenB),
+            10 ether,
+            10 ether,
+            0,
+            0,
+            0,
+            address(this),
+            block.timestamp - 1
+        );
+    }
+
+    function testPoolFeeIsImmutableAndFeeChangesApplyOnlyToNewPools() public {
+        factory.setTokenAllowed(address(tokenC), true);
+        factory.setDefaultFeeBps(10);
+        address poolBC = factory.createPool(address(tokenB), address(tokenC));
+        assertEq(ElliquidPool(poolBC).feeBps(), 10);
+        assertEq(poolAB.feeBps(), 30);
+
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "FEE_TOO_HIGH"));
+        factory.setDefaultFeeBps(101);
+    }
+
+    function testNonOwnerCannotPauseOrChangeFee() public {
+        vm.prank(address(0xBAD));
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "OWNER"));
+        factory.setPaused(true);
+
+        vm.prank(address(0xBAD));
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "OWNER"));
+        factory.setDefaultFeeBps(20);
+    }
+
+    function testUnsolicitedTransferRequiresSyncBeforeSwap() public {
+        _seed(address(tokenA), address(tokenB));
+        tokenA.transfer(address(poolAB), 1 ether);
+
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "SYNC_REQUIRED0"));
+        address[] memory path = new address[](2);
+        path[0] = address(tokenA);
+        path[1] = address(tokenB);
+        router.swapExactTokensForTokens(
+            1 ether,
+            0,
+            path,
+            address(this),
+            block.timestamp + 1 days
+        );
+
+        poolAB.sync();
+        assertGt(router.getAmountsOut(1 ether, path)[1], 0);
+    }
+
+    function testPoolPaginationIsBounded() public {
+        address[] memory page = factory.getPools(0, 50);
+        assertEq(page.length, 1);
+        assertEq(page[0], address(poolAB));
+        assertEq(factory.getPools(1, 50).length, 0);
+
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "BAD_PAGE_SIZE"));
+        factory.getPools(0, 51);
+    }
+}
