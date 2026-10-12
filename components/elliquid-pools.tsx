@@ -104,6 +104,9 @@ export function ElliquidPools() {
   const [factoryOwner, setFactoryOwner] = useState<Address | null>(null);
   const [protocolPaused, setProtocolPaused] = useState<boolean | null>(null);
   const [selectedAddress, setSelectedAddress] = useState<string>("");
+  const [swapQuote, setSwapQuote] = useState<{ output: string; minimum: string; symbol: string } | null>(null);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
 
   const [tokenAInput, setTokenAInput] = useState("");
   const [tokenBInput, setTokenBInput] = useState("");
@@ -210,6 +213,65 @@ export function ElliquidPools() {
   }, [client, factoryAddress]);
 
   useEffect(() => {
+    let cancelled = false;
+    if (!client || !routerAddress || !selectedPool || !swapAmountInput.trim()) {
+      setSwapQuote(null);
+      setQuoteError(null);
+      setQuoteLoading(false);
+      return () => { cancelled = true; };
+    }
+
+    try {
+      const inputIs0 = swapTokenIn === "token0";
+      const inputToken = inputIs0 ? selectedPool.token0 : selectedPool.token1;
+      const outputToken = inputIs0 ? selectedPool.token1 : selectedPool.token0;
+      const inputDecimals = inputIs0 ? selectedPool.decimals0 : selectedPool.decimals1;
+      const outputDecimals = inputIs0 ? selectedPool.decimals1 : selectedPool.decimals0;
+      const outputSymbol = inputIs0 ? selectedPool.symbol1 : selectedPool.symbol0;
+      const amountIn = parseUnits(swapAmountInput, inputDecimals);
+      if (amountIn <= 0n) {
+        setSwapQuote(null);
+        setQuoteError(null);
+        setQuoteLoading(false);
+        return () => { cancelled = true; };
+      }
+
+      setQuoteLoading(true);
+      setQuoteError(null);
+      const path = [inputToken, outputToken] as Address[];
+      void client.readContract({
+        address: routerAddress,
+        abi: routerAbi,
+        functionName: "getAmountsOut",
+        args: [amountIn, path],
+      }).then((amounts) => {
+        if (cancelled) return;
+        const slippage = BigInt(Math.max(1, Math.min(500, Number(slippageBps) || 100)));
+        const output = amounts[amounts.length - 1];
+        const minimum = output * (10_000n - slippage) / 10_000n;
+        setSwapQuote({
+          output: displayAmount(output, outputDecimals),
+          minimum: displayAmount(minimum, outputDecimals),
+          symbol: outputSymbol,
+        });
+        setQuoteError(null);
+      }).catch((error: unknown) => {
+        if (cancelled) return;
+        setSwapQuote(null);
+        setQuoteError(messageOf(error));
+      }).finally(() => {
+        if (!cancelled) setQuoteLoading(false);
+      });
+    } catch {
+      setSwapQuote(null);
+      setQuoteError(null);
+      setQuoteLoading(false);
+    }
+
+    return () => { cancelled = true; };
+  }, [client, routerAddress, selectedPool, swapAmountInput, swapTokenIn, slippageBps]);
+
+  useEffect(() => {
     void loadPoolPage(0, false);
   }, [loadPoolPage]);
 
@@ -240,6 +302,32 @@ export function ElliquidPools() {
       });
       await waitForTransaction(hash);
       setNotice({ kind: "success", text: "Token allowlisted. You can now create pools using it." });
+      await refresh();
+    } catch (error) {
+      setNotice({ kind: "error", text: messageOf(error) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function setProtocolPause(paused: boolean) {
+    setBusy(true);
+    setNotice(null);
+    try {
+      if (!configured || !factoryAddress) throw new Error("Configure the native pool factory address first.");
+      requireWalletAndChain();
+      if (!factoryOwner || wallet?.toLowerCase() !== factoryOwner.toLowerCase()) {
+        throw new Error("Only the factory owner can change protocol pause state.");
+      }
+      const hash = await writeContractAsync({
+        address: factoryAddress,
+        abi: factoryAbi,
+        functionName: "setPaused",
+        args: [paused],
+        chainId: ELYSIUM_TESTNET_ID,
+      });
+      await waitForTransaction(hash);
+      setNotice({ kind: "success", text: paused ? "Emergency pause confirmed on-chain. Swaps, deposits and new pool creation are blocked; LP withdrawals remain available." : "Protocol unpaused on-chain." });
       await refresh();
     } catch (error) {
       setNotice({ kind: "error", text: messageOf(error) });
@@ -484,6 +572,17 @@ export function ElliquidPools() {
           <div><span>Network</span><strong>{chainId === ELYSIUM_TESTNET_ID ? "Elysium Testnet" : "Switch network"}</strong></div>
           <div><span>Protocol status</span><strong className={protocolPaused ? "amm-danger" : "amm-ok"}>{protocolPaused === null ? "Reading…" : protocolPaused ? "Paused" : "Active"}</strong></div>
         </div>
+        {factoryOwner && wallet?.toLowerCase() === factoryOwner.toLowerCase() && (
+          <div className="amm-actions">
+            <button
+              className={protocolPaused ? "amm-button secondary" : "amm-button danger"}
+              onClick={() => void setProtocolPause(!protocolPaused)}
+              disabled={busy || isPending || protocolPaused === null}
+            >
+              {protocolPaused ? "Unpause protocol" : "Emergency pause"}
+            </button>
+          </div>
+        )}
         {loadError && <div className="amm-alert error">{loadError}</div>}
         {notice && <div className={"amm-alert " + notice.kind}>{notice.text}</div>}
       </section>
@@ -580,7 +679,13 @@ export function ElliquidPools() {
               <label>Exact input
                 <input inputMode="decimal" value={swapAmountInput} onChange={(event) => setSwapAmountInput(event.target.value)} placeholder="0.0" />
               </label>
-              <div className="section-meta">Output goes to your connected wallet. The router calculates a fresh quote and enforces your minimum output.</div>
+              <div className="amm-quote">
+                {quoteLoading ? "Updating quote…" : swapQuote ? <>
+                  <strong>Estimated output: {swapQuote.output} {swapQuote.symbol}</strong>
+                  <span>Minimum received at current slippage: {swapQuote.minimum} {swapQuote.symbol}</span>
+                </> : quoteError ? <span>Quote unavailable: {quoteError}</span> : <span>Enter an amount to preview output and minimum received.</span>}
+              </div>
+              <div className="section-meta">Quotes are indicative, not guaranteed. The router checks a fresh quote and enforces the minimum output you set when the swap is submitted.</div>
               <button className="amm-button" onClick={() => void swap()} disabled={isPending || busy || !wallet || protocolPaused === true || selectedPool.totalSupply === 0n}>{isPending ? "Confirm in wallet…" : "Approve & swap"}</button>
             </div>
 
