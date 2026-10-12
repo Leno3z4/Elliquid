@@ -64,6 +64,19 @@ Redeploy the preview after setting those variables. In the Pools tab, enter the 
 
 This is a demo deployment recipe, not a mainnet recipe. The mintable demo token contract should never be used as a production asset.
 
+### Windows PowerShell option
+
+If you are using Windows and Foundry is installed, import a dedicated testnet key into Foundry's encrypted keystore instead of putting the raw key in a command:
+
+```powershell
+cast wallet import elliquid-demo --interactive
+$env:AMM_OWNER = "0xYOUR_TESTNET_WALLET_ADDRESS"
+$env:AMM_DEFAULT_FEE_BPS = "30"
+forge script script/DeployElliquidAMMDemo.s.sol:DeployElliquidAMMDemo --rpc-url elysium_testnet --account elliquid-demo --sender $env:AMM_OWNER --broadcast
+```
+
+The imported account must match AMM_OWNER. Use only a dedicated testnet wallet; never share the private key or keystore password. If Foundry is not installed, use Remix and deploy the factory/router first, but the demo tokens still require compiling and deploying the demo token contracts.
+
 ## Remix deployment order
 
 Compile with Solidity 0.8.24 and the optimizer enabled.
