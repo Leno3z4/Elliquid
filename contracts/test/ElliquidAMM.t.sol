@@ -13,13 +13,14 @@ contract ElliquidAMMTest is Test {
     MockERC20 internal tokenC;
     ElliquidPoolFactory internal factory;
     ElliquidRouter internal router;
+    address internal pauseGuardian = address(0xBEEF);
     ElliquidPool internal poolAB;
 
     function setUp() public {
         tokenA = new MockERC20("Token A", "TKA", 1_000_000 ether);
         tokenB = new MockERC20("Token B", "TKB", 1_000_000 ether);
         tokenC = new MockERC20("Token C", "TKC", 1_000_000 ether);
-        factory = new ElliquidPoolFactory(address(this), 30);
+        factory = new ElliquidPoolFactory(address(this), pauseGuardian, 30);
         factory.setTokenAllowed(address(tokenA), true);
         factory.setTokenAllowed(address(tokenB), true);
         router = new ElliquidRouter(factory);
@@ -217,7 +218,7 @@ contract ElliquidAMMTest is Test {
 
     function testNonOwnerCannotPauseOrChangeFee() public {
         vm.prank(address(0xBAD));
-        vm.expectRevert(abi.encodeWithSignature("Error(string)", "OWNER"));
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "PAUSE_AUTH"));
         factory.setPaused(true);
 
         vm.prank(address(0xBAD));
@@ -364,6 +365,46 @@ contract ElliquidAMMTest is Test {
 
         vm.expectRevert(abi.encodeWithSignature("Error(string)", "DUPLICATE_PATH_TOKEN"));
         router.getAmountsOut(1 ether, path);
+    }
+
+    function testPauseGuardianCanPauseButCannotUnpauseOrChangePolicy() public {
+        vm.prank(pauseGuardian);
+        factory.setPaused(true);
+        assertTrue(factory.paused(), "GUARDIAN_DID_NOT_PAUSE");
+
+        vm.prank(pauseGuardian);
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "OWNER_UNPAUSE_ONLY"));
+        factory.setPaused(false);
+
+        vm.prank(pauseGuardian);
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "OWNER"));
+        factory.setDefaultFeeBps(20);
+
+        factory.setPaused(false);
+        assertFalse(factory.paused(), "OWNER_CANNOT_UNPAUSE");
+    }
+
+    function testPauseGuardianRotationRequiresNewGuardianAcceptance() public {
+        address newGuardian = address(0xCAFE);
+        factory.startPauseGuardianUpdate(newGuardian);
+        assertEq(factory.pauseGuardian(), pauseGuardian, "GUARDIAN_CHANGED_EARLY");
+        assertEq(factory.pendingPauseGuardian(), newGuardian, "PENDING_GUARDIAN_NOT_SET");
+
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "PENDING_GUARDIAN"));
+        factory.acceptPauseGuardianUpdate();
+
+        vm.prank(newGuardian);
+        factory.acceptPauseGuardianUpdate();
+        assertEq(factory.pauseGuardian(), newGuardian, "GUARDIAN_NOT_UPDATED");
+        assertEq(factory.pendingPauseGuardian(), address(0), "PENDING_GUARDIAN_NOT_CLEARED");
+
+        vm.prank(pauseGuardian);
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "PAUSE_AUTH"));
+        factory.setPaused(true);
+
+        vm.prank(newGuardian);
+        factory.setPaused(true);
+        assertTrue(factory.paused(), "NEW_GUARDIAN_CANNOT_PAUSE");
     }
 
     function testEmergencyPauseBlocksNewPoolCreation() public {
