@@ -88,6 +88,24 @@ These are testnet assets, not mainnet assets or a price guarantee. Balances may 
 
 Emergency pause: the factory owner can call `setPaused(true)`; swaps and new liquidity additions stop, but LP withdrawals remain available. Only the factory owner can unpause.
 
+#### Optional reproducible Foundry deployment
+
+The repository includes `contracts/script/DeployElliquidAMM.s.sol` for deploying the factory and router together. From the `contracts` directory on your own machine:
+
+1. Copy `.env.example` to `.env` and set `OWNER` to your governance wallet and `DEFAULT_FEE_BPS=30`.
+2. Make sure your deployer wallet has only a small amount of Elysium testnet HYPE for gas. Never use a mainnet wallet or commit a private key.
+3. In a local shell, export the testnet deployer key as `DEPLOYER_PRIVATE_KEY`, then run:
+
+```sh
+forge script script/DeployElliquidAMM.s.sol:DeployElliquidAMM \\
+  --rpc-url https://testnet-rpc.elysium.kinetiq.xyz \\
+  --broadcast --private-key "$DEPLOYER_PRIVATE_KEY"
+```
+
+4. Save the emitted factory/router addresses from the broadcast output. Verify both addresses have contract code and check the factory's `owner()`, `defaultFeeBps()`, `paused()` and both token `tokenAllowed()` values before setting the frontend environment variables.
+
+This script deploys only the AMM factory and router. It does not change any of the existing Elliquid vault, marketplace, registry or fee-controller contracts.
+
 ### 5. Vault strategy integration (not enabled for the current demo)
 
 **Do not attach this adapter to the existing deployed vault for the hackathon demo.** The currently deployed/main-branch `ElliquidVault` tracks idle assets and share accounting, but it does not yet calculate NAV from LP shares or unwind an AMM position during withdrawal. Moving assets into an LP position without that work can make a vault withdrawal revert with `LIQUIDITY_LOCKED`.
