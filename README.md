@@ -118,10 +118,10 @@ See `contracts/REMIX_DEPLOYMENT.md` for the Remix deployment order, configurable
 
 Elliquid now has a first-party constant-product pool design rather than requiring Market Lab or another venue to create its pools. The core pieces are:
 
-- `ElliquidPoolFactory`: owner-controlled token allowlist, deterministic token ordering, one pool per pair, per-new-pool fee configuration, bounded on-chain pool pagination and protocol pause.
+- `ElliquidPoolFactory`: owner-controlled token allowlist, deterministic token ordering, one pool per pair, per-new-pool fee configuration, bounded on-chain pool pagination and a separate emergency pause guardian. The guardian can pause but cannot unpause, alter fees or change the token allowlist.
 - `ElliquidPool`: one pair of ERC-20 tokens, LP shares, liquidity add/remove, exact-input swaps, per-pool immutable fees, deadlines and minimum-output checks. The emergency pause stops swaps and new liquidity but keeps LP withdrawals available.
 - `ElliquidRouter`: ratio-aware liquidity add with excess-token refunds, LP removal, direct swaps and bounded multi-hop routes (up to four hops). It exposes a V2-compatible liquidity method, but this interface alone does **not** make the existing vault adapter safe for deployment.
-- `components/elliquid-pools.tsx`: reads the factory/pool state from Elysium Testnet and supports allowlisting (factory owner only), pool creation, swap, add liquidity and remove liquidity from a connected wallet.
+- `components/elliquid-pools.tsx`: reads the factory/pool state from Elysium Testnet and supports allowlisting (factory owner only), pool creation, swap quotes/execution, add liquidity, LP share balance display, remove liquidity and role-aware emergency pause controls from a connected wallet.
 
 ### Testnet configuration
 
