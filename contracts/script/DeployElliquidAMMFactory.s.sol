@@ -18,12 +18,14 @@ contract DeployElliquidAMMFactory {
 
     function run() external returns (ElliquidPoolFactory factory) {
         address owner = _envAddress("OWNER");
+        address pauseGuardian = _envAddress("PAUSE_GUARDIAN");
         uint256 feeValue = _envUint("DEFAULT_FEE_BPS");
         require(owner != address(0), "OWNER_ZERO");
+        require(pauseGuardian != address(0) && pauseGuardian != owner, "BAD_GUARDIAN");
         require(feeValue <= 100, "FEE_TOO_HIGH");
 
         vm.startBroadcast();
-        factory = new ElliquidPoolFactory(owner, uint16(feeValue));
+        factory = new ElliquidPoolFactory(owner, pauseGuardian, uint16(feeValue));
         vm.stopBroadcast();
     }
 
