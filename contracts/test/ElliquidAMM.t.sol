@@ -248,6 +248,23 @@ contract ElliquidAMMTest is Test {
         assertGt(MockERC20(poolAB.token1()).balanceOf(address(this)), outputBefore);
     }
 
+    function testDonatedTokensCannotEnableSwapWithoutLpSupply() public {
+        tokenA.transfer(address(poolAB), 1 ether);
+        tokenB.transfer(address(poolAB), 1 ether);
+        address[] memory path = new address[](2);
+        path[0] = address(tokenA);
+        path[1] = address(tokenB);
+
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "NO_LIQUIDITY"));
+        router.swapExactTokensForTokens(
+            1 ether,
+            0,
+            path,
+            address(this),
+            block.timestamp + 1 days
+        );
+    }
+
     function testFuzz_ConstantProductInvariantDoesNotDecrease(uint96 rawAmount) public {
         _seed(address(tokenA), address(tokenB));
         uint256 amountIn = bound(uint256(rawAmount), 1e12, 5 ether);
