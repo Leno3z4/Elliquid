@@ -79,12 +79,12 @@ The execution engine will be introduced inside the Worker runtime as a separate 
 - [ ] seed strategy / project registry
 - [ ] authenticated write endpoints
 - [x] Elysium chain client + role-checked execution boundary
-- [ ] Elysium-compatible AMM adapter (venue-specific; bridge router is not an AMM)
+- [ ] Native Elliquid AMM testnet integration (pool/factory/router contracts added on feature branch; deployment and end-to-end UI verification remain)
 - [x] real wallet transaction execution/reconciliation service (testnet-ready; deployment still required)
 - [ ] chain event indexer
 - [ ] strategy / allocation engine
 - [ ] rebalance keeper
-- [ ] testnet deployment (awaiting verified venue + end-to-end test)
+- [ ] AMM testnet deployment and end-to-end test (awaiting contract CI, integration, and verified asset setup)
 - [ ] contract test suite
 - [ ] audit hardening
 
@@ -112,3 +112,10 @@ An uncertain broadcast is left recoverable under the same action key/nonce; the 
 ## Deployment configuration
 
 See `contracts/REMIX_DEPLOYMENT.md` for the Remix deployment order, configurable parameters, safety boundaries and Elysium-specific integration rules.
+
+
+## Native pool system
+
+Elliquid's native AMM is being developed on the feature/native-elliquid-amm branch with a dedicated draft PR. It comprises a pool factory, isolated constant-product pools with LP shares, and a bounded router. The Market Lab adapter experiment is separate and is not included in the native AMM branch.
+
+Deployment and Remix steps are documented in contracts/AMM_DEPLOYMENT.md. This is currently a testnet-only, unaudited MVP. Do not describe it as production-secure until adversarial testing and independent review are complete.

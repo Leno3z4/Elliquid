@@ -11,7 +11,10 @@ Hackathon-stage Solidity protocol layer for the Elliquid liquidity marketplace.
 - `ProjectRegistry.sol` — governance allowlist and metadata registry for liquidity-requesting projects.
 - `FeeController.sol` — bounded fee policy and treasury collection boundary.
 - `IElliquidAdapter.sol` — adapter execution boundary.
-- `V2SingleSidedLiquidityAdapter.sol` — generic V2-compatible adapter; only use with a separately verified AMM router.
+- `ElliquidPoolFactory.sol` — native pool registry, token onboarding, fixed default fee for new pools and emergency pause.
+- `ElliquidPool.sol` — isolated constant-product pool with LP shares and exact-input swaps.
+- `ElliquidRouter.sol` — bounded multi-hop swaps, quotes and LP management.
+- `V2SingleSidedLiquidityAdapter.sol` — optional adapter for external V2-compatible venues; not used by Elliquid's native pools.
 
 ## Elysium integration rule
 
@@ -22,3 +25,5 @@ Elysium supports spot AMMs and PropAMMs, but the published testnet router addres
 These contracts are not externally audited. The repository includes Foundry unit tests and CI, but that is not a substitute for an independent security review or adversarial testnet deployment. Keep deposits intentionally small until those steps are complete.
 
 See `REMIX_DEPLOYMENT.md` for deployment order, role separation, configuration boundaries and preflight checks.
+
+See AMM_DEPLOYMENT.md for native-pool deployment steps, supported-asset restrictions, and testnet checks.
