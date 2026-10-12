@@ -23,6 +23,7 @@ const factoryAbi = parseAbi([
   "function createPool(address tokenA, address tokenB) returns (address pool)",
   "function tokenAllowed(address token) view returns (bool)",
   "function setTokenAllowed(address token, bool allowed)",
+  "function setPaused(bool shouldPause)",
 ]);
 
 const poolAbi = parseAbi([
