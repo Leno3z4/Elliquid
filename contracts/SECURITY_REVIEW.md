@@ -95,3 +95,17 @@ Do not accept production deposits until:
 5. withdrawal behavior is tested with deployed positions;
 6. ownership, executor, guardian and treasury addresses are independently reviewed;
 7. all testnet configuration is recorded and reproducible.
+
+
+## Native AMM — added on 2026-10-12, not independently audited
+
+The native AMM branch adds the factory, per-pair pools, and router. The intended controls include a token allowlist, an immutable pool fee, a 1% maximum fee cap, reserve bounds, a pause that blocks swaps and new deposits while leaving LP exits open, minimum output parameters, deadlines, ERC-20 return-value checks, and bounded multi-hop routing.
+
+Remaining risks and required gates:
+
+- Validate the constant-product invariant over fuzzed values and changing pool balances; test rounding, one-sided dust, and reserve edge cases.
+- Add adversarial token mocks for false/no return data, revert, reentrancy, fee-on-transfer, rebasing and malicious balanceOf behavior. Unsupported assets must fail safely.
+- Check pool LP-share transfer/allowance edge cases and router approvals with non-standard tokens.
+- Test create/add/swap/remove and pause/unpause on Elysium testnet using independently verified test tokens, then verify deployment bytecode and recorded addresses.
+- The protocol does not provide a manipulation-resistant oracle, time-weighted price, flash-swap functionality, or audited vault-to-AMM strategy accounting.
+- Run invariant/fuzz testing and obtain an independent audit before any mainnet or meaningful-value launch.
