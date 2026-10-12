@@ -60,22 +60,77 @@ On the vault:
 
 The pause guardian can stop strategy execution but cannot unpause it or change economic configuration. Keep this key operationally separate from the owner where possible.
 
-### 4. Deploy an AMM adapter only after the venue is verified
+### 4. Deploy Elliquid's own pool system (hackathon path)
 
-For DeployElliquidAdapter.s.sol, AMM_ROUTER means a verified V2-compatible AMM router.
+The native AMM is separate from `ElliquidVaultFactory`. Do not replace any already-deployed vault, marketplace, project, strategy or fee-controller address to add it.
 
-Do not use the Elysium canonical bridge router as AMM_ROUTER. Kinetiq documents that router for token bridging (outboundTransfer, gateway resolution and L2 token calculation), not V2 liquidity operations.
+Compile `contracts/src/ElliquidPool.sol`, `ElliquidPoolFactory.sol` and `ElliquidRouter.sol` with Solidity 0.8.24, optimizer enabled (200 runs) and `viaIR` enabled. Use the latest version from the native AMM feature branch.
 
-If the target Elysium venue does not expose the V2 router interface used by V2SingleSidedLiquidityAdapter, do not deploy/use that adapter. Add a venue-specific adapter instead.
+1. Deploy `ElliquidPoolFactory` with `initialOwner = your governance/multisig wallet`, `initialPauseGuardian = a separate emergency wallet`, and `initialFeeBps = 30` (0.30%). The owner and guardian addresses must differ. Save the factory address.
+2. Call `setTokenAllowed(token, true)` for each asset you intend to support. Only allowlist known ERC-20 contracts with standard, non-rebasing, non-fee-on-transfer behavior.
+3. Deploy `ElliquidRouter` with the new `ElliquidPoolFactory` address. Save the router address.
+4. Call `createPool(tokenA, tokenB)` in the factory. Duplicate pairs are rejected; token order is normalized automatically.
+5. In the app's deployment environment, set `NEXT_PUBLIC_ELLIQUID_POOL_FACTORY_ADDRESS` and `NEXT_PUBLIC_ELLIQUID_ROUTER_ADDRESS`, then rebuild/redeploy the web app.
+6. Connect the owner wallet on chain ID 99801. The Pools screen should read the actual factory state. Select the created pair, add a deliberately tiny amount of both tokens, perform a minimum-output-protected swap, and remove some LP shares to verify withdrawals.
 
-After deploying a compatible adapter:
+#### Known Elysium Testnet ERC-20s
 
-1. On the adapter, call setVaultAllowed(vaultAddress, true).
-2. On the vault, call setAdapterAllowed(adapterAddress, true).
-3. Set the executor with setStrategyExecutor(executorWallet) when using a dedicated keeper.
-4. Keep the funding cap conservative with setMaxAdapterFundingBps(...).
+The Elysium Testnet Explorer currently lists these deployed assets:
 
-The two allowlists are intentional: the adapter must trust the vault and the vault must trust the adapter.
+| Token | Contract | Decimals | Explorer |
+|---|---|---:|---|
+| USDC | `0x7D29d8047B905000459c0E80c34a26CeedcB47b2` | 6 | https://blobtrace.com/token/0x7D29d8047B905000459c0E80c34a26CeedcB47b2 |
+| WHYPE | `0xA5b72796E5bf80443DC134F3c8a1cc97dcCC39B9` | 18 | https://blobtrace.com/token/0xCD57F65c2B0e5881CFC2E609F7CD53b746E1F234 |
+
+These are testnet assets, not mainnet assets or a price guarantee. Balances may depend on faucet/community distribution. Your previous vault asset address matches the USDC contract shown above. Verify `symbol()`, `decimals()`, and your wallet balance on chain before approving any amount.
+
+**Important initial-price rule:** the first liquidity provider sets the pool's initial token ratio. It is not automatically matched to a market price and this AMM is not an oracle. Before adding liquidity, decide the intended initial ratio and use a tiny test amount. Do not treat a newly seeded pool's spot price as a trusted oracle for vault NAV, collateral or risk decisions.
+
+Emergency pause: either the factory owner or the separate pause guardian can call `setPaused(true)`; swaps, new liquidity additions and new pool creation stop, but LP withdrawals remain available. Only the factory owner can unpause or change the token allowlist/fees. Guardian rotation is two-step: owner calls `startPauseGuardianUpdate(newGuardian)`, then the new guardian calls `acceptPauseGuardianUpdate()`.
+
+#### Reproducible Foundry deployment (split to respect EIP-170)
+
+The deployment code is split into two scripts because a single script that embeds both deployment bytecodes exceeds the EVM runtime code-size limit. Use `contracts/.env.example` as a template and run the commands from the `contracts` directory.
+
+1. Copy `.env.example` to `.env`. Set `OWNER` to your governance/multisig wallet, `PAUSE_GUARDIAN` to a different emergency wallet, and `DEFAULT_FEE_BPS=30`. Keep `.env` uncommitted.
+2. Set `DEPLOYER_PRIVATE_KEY` only in your local shell / secret manager. The funded deployer must have testnet HYPE for gas. Never paste the key into chat or commit it.
+3. Deploy the factory:
+
+```sh
+export DEPLOYER_PRIVATE_KEY=0xYOUR_TESTNET_DEPLOYER_PRIVATE_KEY
+forge script script/DeployElliquidAMMFactory.s.sol:DeployElliquidAMMFactory \
+  --rpc-url https://testnet-rpc.elysium.kinetiq.xyz \
+  --broadcast --private-key "$DEPLOYER_PRIVATE_KEY"
+```
+
+4. Copy the deployed factory address into `POOL_FACTORY` in `.env`. Keep `OWNER` set to the exact owner passed to the factory constructor.
+5. Deploy the router:
+
+```sh
+forge script script/DeployElliquidAMMRouter.s.sol:DeployElliquidAMMRouter \
+  --rpc-url https://testnet-rpc.elysium.kinetiq.xyz \
+  --broadcast --private-key "$DEPLOYER_PRIVATE_KEY"
+```
+
+6. In Remix or the app, verify factory `owner()`, `defaultFeeBps()`, `paused()`, and router `factory()`. Then use the connected owner wallet to allowlist the intended test assets, create the pool, add a tiny test liquidity amount, swap a tiny amount and remove LP shares.
+7. Set `NEXT_PUBLIC_ELLIQUID_POOL_FACTORY_ADDRESS` and `NEXT_PUBLIC_ELLIQUID_ROUTER_ADDRESS` in the frontend hosting environment and redeploy the frontend.
+
+The scripts deploy only the AMM factory and router. They do not change existing vault, marketplace, registry or fee-controller contracts.
+
+### 5. Vault strategy integration (not enabled for the current demo)
+
+**Do not attach this adapter to the existing deployed vault for the hackathon demo.** The currently deployed/main-branch `ElliquidVault` tracks idle assets and share accounting, but it does not yet calculate NAV from LP shares or unwind an AMM position during withdrawal. Moving assets into an LP position without that work can make a vault withdrawal revert with `LIQUIDITY_LOCKED`.
+
+The router supports the V2-compatible `swapExactTokensForTokens` and eight-argument `addLiquidity` methods used by `V2SingleSidedLiquidityAdapter`, but API compatibility is not the same as safe vault integration. The following steps are for a later test-only integration after adding and testing position-aware NAV and automatic unwind:
+
+1. First create and seed the token pair that includes the vault's ERC-20 asset.
+2. Deploy `V2SingleSidedLiquidityAdapter` with `_router = ElliquidRouter` and `_owner = governance wallet`.
+3. On the adapter, call `setVaultAllowed(vaultAddress, true)`.
+4. On the vault, call `setAdapterAllowed(adapterAddress, true)` (and confirm the adapter is approved under the deployed vault's current method names).
+5. Ensure the vault's `strategyExecutor` is the dedicated authorized executor, the action key is fresh, and funding amount stays below the configured cap.
+6. Test a small execute and then a vault withdrawal/unwind before attempting any repeated strategy actions.
+
+The adapter is a two-sided liquidity adapter, not a yield guarantee. Do not enable it automatically or move substantial capital until an end-to-end test proves the vault can account for the LP position and safely unwind it on withdrawal. The entire native AMM integration is testnet-only and unaudited.
 
 ## Configuration philosophy
 

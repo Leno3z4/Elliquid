@@ -16,8 +16,13 @@ jobs:
           node-version: 22
 
       - run: npm install
+      - name: Dependency vulnerability report
+        run: |
+          npm audit --json > /tmp/npm-audit.json || true
+          node -e 'const a=require("/tmp/npm-audit.json"); for (const [name,v] of Object.entries(a.vulnerabilities||{})) console.log(JSON.stringify({name,severity:v.severity,range:v.range,fixAvailable:v.fixAvailable,via:v.via.map(x=>typeof x === "string" ? x : {title:x.title,url:x.url,range:x.range})}));'
       - run: npm run lint
       - run: npm run check:api
+      - run: npm run build
 
   contracts:
     runs-on: ubuntu-latest
@@ -32,5 +37,5 @@ jobs:
           version: stable
 
       - run: forge install foundry-rs/forge-std --no-commit
-      - run: forge build
-      - run: forge test
+      - run: forge build --sizes
+      - run: forge test --fuzz-runs 1000

@@ -13,13 +13,14 @@ contract ElliquidAMMTest is Test {
     MockERC20 internal tokenC;
     ElliquidPoolFactory internal factory;
     ElliquidRouter internal router;
+    address internal pauseGuardian = address(0xBEEF);
     ElliquidPool internal poolAB;
 
     function setUp() public {
         tokenA = new MockERC20("Token A", "TKA", 1_000_000 ether);
         tokenB = new MockERC20("Token B", "TKB", 1_000_000 ether);
         tokenC = new MockERC20("Token C", "TKC", 1_000_000 ether);
-        factory = new ElliquidPoolFactory(address(this), 30);
+        factory = new ElliquidPoolFactory(address(this), pauseGuardian, 30);
         factory.setTokenAllowed(address(tokenA), true);
         factory.setTokenAllowed(address(tokenB), true);
         router = new ElliquidRouter(factory);
@@ -217,7 +218,7 @@ contract ElliquidAMMTest is Test {
 
     function testNonOwnerCannotPauseOrChangeFee() public {
         vm.prank(address(0xBAD));
-        vm.expectRevert(abi.encodeWithSignature("Error(string)", "OWNER"));
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "PAUSE_AUTH"));
         factory.setPaused(true);
 
         vm.prank(address(0xBAD));
@@ -289,7 +290,7 @@ contract ElliquidAMMTest is Test {
         );
 
         assertEq(mintedShares, quotedShares, "INITIAL_SHARE_PREVIEW_MISMATCH");
-        assertEq(mintedShares, 101 ether - factory.defaultFeeBps() * 0, "DONATION_NOT_ACCOUNTED");
+        assertEq(mintedShares, 101 ether - poolAB.MINIMUM_LIQUIDITY(), "DONATION_NOT_ACCOUNTED");
     }
 
     function testFuzz_ConstantProductInvariantDoesNotDecrease(uint96 rawAmount) public {
@@ -334,6 +335,92 @@ contract ElliquidAMMTest is Test {
 
         assertEq(tokenA.balanceOf(address(this)), inputBefore, "INPUT_NOT_ATOMIC");
         assertEq(tokenB.balanceOf(address(this)), outputBefore, "OUTPUT_NOT_ATOMIC");
+    }
+
+    function testRouterSupportsV2CompatibleLiquiditySignature() public {
+        _seed(address(tokenA), address(tokenB));
+
+        (uint256 amountA, uint256 amountB, uint256 shares) = router.addLiquidity(
+            address(tokenA),
+            address(tokenB),
+            10 ether,
+            10 ether,
+            10 ether,
+            10 ether,
+            address(this),
+            block.timestamp + 1 days
+        );
+
+        assertEq(amountA, 10 ether, "V2_AMOUNT_A");
+        assertEq(amountB, 10 ether, "V2_AMOUNT_B");
+        assertGt(shares, 0, "V2_SHARES");
+    }
+
+    function testRouterRejectsCyclicPathsWithStaleMultiHopQuotes() public {
+        _seed(address(tokenA), address(tokenB));
+        address[] memory path = new address[](3);
+        path[0] = address(tokenA);
+        path[1] = address(tokenB);
+        path[2] = address(tokenA);
+
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "DUPLICATE_PATH_TOKEN"));
+        router.getAmountsOut(1 ether, path);
+    }
+
+    function testPauseGuardianCanPauseButCannotUnpauseOrChangePolicy() public {
+        vm.prank(pauseGuardian);
+        factory.setPaused(true);
+        assertTrue(factory.paused(), "GUARDIAN_DID_NOT_PAUSE");
+
+        vm.prank(pauseGuardian);
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "OWNER_UNPAUSE_ONLY"));
+        factory.setPaused(false);
+
+        vm.prank(pauseGuardian);
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "OWNER"));
+        factory.setDefaultFeeBps(20);
+
+        factory.setPaused(false);
+        assertFalse(factory.paused(), "OWNER_CANNOT_UNPAUSE");
+    }
+
+    function testOwnerAndPauseGuardianRolesCannotCollide() public {
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "ROLE_COLLISION"));
+        factory.startOwnershipTransfer(pauseGuardian);
+
+        address nextOwner = address(0xCAFE);
+        factory.startOwnershipTransfer(nextOwner);
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "BAD_GUARDIAN"));
+        factory.startPauseGuardianUpdate(nextOwner);
+    }
+
+    function testPauseGuardianRotationRequiresNewGuardianAcceptance() public {
+        address newGuardian = address(0xCAFE);
+        factory.startPauseGuardianUpdate(newGuardian);
+        assertEq(factory.pauseGuardian(), pauseGuardian, "GUARDIAN_CHANGED_EARLY");
+        assertEq(factory.pendingPauseGuardian(), newGuardian, "PENDING_GUARDIAN_NOT_SET");
+
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "PENDING_GUARDIAN"));
+        factory.acceptPauseGuardianUpdate();
+
+        vm.prank(newGuardian);
+        factory.acceptPauseGuardianUpdate();
+        assertEq(factory.pauseGuardian(), newGuardian, "GUARDIAN_NOT_UPDATED");
+        assertEq(factory.pendingPauseGuardian(), address(0), "PENDING_GUARDIAN_NOT_CLEARED");
+
+        vm.prank(pauseGuardian);
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "PAUSE_AUTH"));
+        factory.setPaused(true);
+
+        vm.prank(newGuardian);
+        factory.setPaused(true);
+        assertTrue(factory.paused(), "NEW_GUARDIAN_CANNOT_PAUSE");
+    }
+
+    function testEmergencyPauseBlocksNewPoolCreation() public {
+        factory.setPaused(true);
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "AMM_PAUSED"));
+        factory.createPool(address(tokenA), address(tokenB));
     }
 
     function testPoolPaginationIsBounded() public {
