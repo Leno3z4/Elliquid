@@ -41,6 +41,29 @@ forge script script/DeployElliquidAMM.s.sol:DeployElliquidAMM --rpc-url elysium_
 
 Use a testnet-only deployer, set `AMM_OWNER` to the wallet or multisig that should own the factory, and keep `ELYSIUM_TESTNET_PRIVATE_KEY` in your shell/secret manager—not in GitHub source, `.env.example`, frontend variables or chat. If explorer verification is properly configured, add `--verify` and its API key as a local environment secret; otherwise verify each contract through the explorer workflow. Record both deployed addresses from the broadcast output. The deployer and AMM_OWNER should normally be the same test wallet for the demo.
 
+## Recommended first demo: deploy a complete testnet stack
+
+The repository includes `ElliquidTestnetToken.sol` and `script/DeployElliquidAMMDemo.s.sol`. The demo script deploys the factory, router, two clearly labelled fake tokens, creates their pool, and seeds it with starter liquidity. This avoids depending on an unverified token address just to exercise the user journey.
+
+Run from the `contracts` directory with a **testnet-only** wallet:
+
+```sh
+export AMM_OWNER=0xYOUR_TESTNET_WALLET_ADDRESS
+export AMM_DEFAULT_FEE_BPS=30
+forge script script/DeployElliquidAMMDemo.s.sol:DeployElliquidAMMDemo --rpc-url elysium_testnet --broadcast --private-key "$ELYSIUM_TESTNET_PRIVATE_KEY"
+```
+
+`AMM_OWNER` must be the address derived from the same private key supplied to Foundry. Keep `ELYSIUM_TESTNET_PRIVATE_KEY` out of source control and chat. Do not store it in any `NEXT_PUBLIC_*` variable. The script mints 1,000,000 `eUSD-TEST` (6 decimals) and 1,000,000 `eAST` (18 decimals) to the owner, then seeds the pool with 10,000 of each. These are valueless demo assets with owner-controlled minting; **they are not USDC, not backed by dollars, and not suitable for real funds**.
+
+Foundry prints the deployment transactions and receipt logs. Record the factory, router, pool, and both token addresses. In the frontend/Vercel preview environment, set only these public addresses:
+
+- `NEXT_PUBLIC_ELLIQUID_POOL_FACTORY_ADDRESS`: factory deployment address.
+- `NEXT_PUBLIC_ELLIQUID_ROUTER_ADDRESS`: router deployment address.
+
+Redeploy the preview after setting those variables. In the Pools tab, enter the token addresses from the broadcast log to select the pre-seeded pool. Verify the factory `getPool(eUSD-TEST, eAST)`, read the pool reserves, do a small swap, and remove a small portion of LP shares. Test a complete add → swap → remove journey before recording the demo.
+
+This is a demo deployment recipe, not a mainnet recipe. The mintable demo token contract should never be used as a production asset.
+
 ## Remix deployment order
 
 Compile with Solidity 0.8.24 and the optimizer enabled.
