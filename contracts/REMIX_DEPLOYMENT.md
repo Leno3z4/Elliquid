@@ -88,9 +88,11 @@ These are testnet assets, not mainnet assets or a price guarantee. Balances may 
 
 Emergency pause: the factory owner can call `setPaused(true)`; swaps and new liquidity additions stop, but LP withdrawals remain available. Only the factory owner can unpause.
 
-### 5. Connect a single-sided vault strategy (optional after the AMM smoke test)
+### 5. Vault strategy integration (not enabled for the current demo)
 
-The router supports the V2-compatible `swapExactTokensForTokens` and eight-argument `addLiquidity` methods used by `V2SingleSidedLiquidityAdapter`. If you intend to use the adapter against Elliquid's native pools:
+**Do not attach this adapter to the existing deployed vault for the hackathon demo.** The currently deployed/main-branch `ElliquidVault` tracks idle assets and share accounting, but it does not yet calculate NAV from LP shares or unwind an AMM position during withdrawal. Moving assets into an LP position without that work can make a vault withdrawal revert with `LIQUIDITY_LOCKED`.
+
+The router supports the V2-compatible `swapExactTokensForTokens` and eight-argument `addLiquidity` methods used by `V2SingleSidedLiquidityAdapter`, but API compatibility is not the same as safe vault integration. The following steps are for a later test-only integration after adding and testing position-aware NAV and automatic unwind:
 
 1. First create and seed the token pair that includes the vault's ERC-20 asset.
 2. Deploy `V2SingleSidedLiquidityAdapter` with `_router = ElliquidRouter` and `_owner = governance wallet`.
