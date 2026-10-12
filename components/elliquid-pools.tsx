@@ -114,6 +114,7 @@ export function ElliquidPools() {
   const [removeSharesInput, setRemoveSharesInput] = useState("");
   const [slippageBps, setSlippageBps] = useState("100");
   const [notice, setNotice] = useState<{ kind: "success" | "error" | "info"; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const selectedPool = useMemo(
     () => pools.find((pool) => pool.address.toLowerCase() === selectedAddress.toLowerCase()) ?? null,
@@ -220,6 +221,8 @@ export function ElliquidPools() {
   }, [loadPoolPage]);
 
   async function allowToken(tokenText: string) {
+    setBusy(true);
+    setNotice(null);
     try {
       if (!configured || !factoryAddress) throw new Error("Configure the native pool factory and router addresses first.");
       requireWalletAndChain();
@@ -240,10 +243,14 @@ export function ElliquidPools() {
       await refresh();
     } catch (error) {
       setNotice({ kind: "error", text: messageOf(error) });
+    } finally {
+      setBusy(false);
     }
   }
 
   async function createPool() {
+    setBusy(true);
+    setNotice(null);
     try {
       if (!configured || !factoryAddress) throw new Error("Configure the native pool factory and router addresses first.");
       requireWalletAndChain();
@@ -274,6 +281,8 @@ export function ElliquidPools() {
   }
 
   async function addLiquidity() {
+    setBusy(true);
+    setNotice(null);
     try {
       if (!configured || !routerAddress || !selectedPool) throw new Error("Select an existing pool first.");
       requireWalletAndChain();
@@ -339,6 +348,8 @@ export function ElliquidPools() {
   }
 
   async function swap() {
+    setBusy(true);
+    setNotice(null);
     try {
       if (!configured || !routerAddress || !selectedPool) throw new Error("Select an existing pool first.");
       requireWalletAndChain();
@@ -394,6 +405,8 @@ export function ElliquidPools() {
   }
 
   async function removeLiquidity() {
+    setBusy(true);
+    setNotice(null);
     try {
       if (!configured || !routerAddress || !selectedPool) throw new Error("Select an existing pool first.");
       requireWalletAndChain();
@@ -462,7 +475,7 @@ export function ElliquidPools() {
             <div className="section-title">Elliquid pool market</div>
             <div className="section-meta">First-party constant-product pools · Elysium Testnet · no external AMM dependency</div>
           </div>
-          <button className="amm-button secondary" onClick={() => void refresh()} disabled={loading || isPending}>
+          <button className="amm-button secondary" onClick={() => void refresh()} disabled={loading || isPending || busy}>
             {loading ? "Refreshing…" : "Refresh on-chain data"}
           </button>
         </div>
@@ -489,11 +502,11 @@ export function ElliquidPools() {
         <div className="amm-actions">
           {factoryOwner && wallet?.toLowerCase() === factoryOwner.toLowerCase() && (
             <>
-              <button className="amm-button secondary" onClick={() => void allowToken(tokenAInput)} disabled={isPending || !isAddress(tokenAInput)}>Allowlist token A</button>
-              <button className="amm-button secondary" onClick={() => void allowToken(tokenBInput)} disabled={isPending || !isAddress(tokenBInput)}>Allowlist token B</button>
+              <button className="amm-button secondary" onClick={() => void allowToken(tokenAInput)} disabled={isPending || busy || !isAddress(tokenAInput)}>Allowlist token A</button>
+              <button className="amm-button secondary" onClick={() => void allowToken(tokenBInput)} disabled={isPending || busy || !isAddress(tokenBInput)}>Allowlist token B</button>
             </>
           )}
-          <button className="amm-button" onClick={() => void createPool()} disabled={isPending || !wallet}>
+          <button className="amm-button" onClick={() => void createPool()} disabled={isPending || busy || !wallet}>
             {isPending ? "Confirm in wallet…" : "Create pool"}
           </button>
         </div>
@@ -541,7 +554,7 @@ export function ElliquidPools() {
               <div><span>LP shares outstanding</span><strong>{displayAmount(selectedPool.totalSupply, 18)}</strong><code>ELL-LP</code></div>
             </div>
             <label className="amm-slippage">Slippage tolerance (basis points)
-              <input type="number" min="1" max="500" value={slippageBps} onChange={(event) => setSlippageBps(event.target.value)} />
+              <input type="number" min="1" max="500" step="1" value={slippageBps} onChange={(event) => setSlippageBps(event.target.value)} />
               <span>1 bp = 0.01%. Maximum 500 bps (5%).</span>
             </label>
 
@@ -557,7 +570,7 @@ export function ElliquidPools() {
                 <input inputMode="decimal" value={swapAmountInput} onChange={(event) => setSwapAmountInput(event.target.value)} placeholder="0.0" />
               </label>
               <div className="section-meta">Output goes to your connected wallet. The router calculates a fresh quote and enforces your minimum output.</div>
-              <button className="amm-button" onClick={() => void swap()} disabled={isPending || !wallet || protocolPaused === true}>{isPending ? "Confirm in wallet…" : "Approve & swap"}</button>
+              <button className="amm-button" onClick={() => void swap()} disabled={isPending || busy || !wallet || protocolPaused === true}>{isPending ? "Confirm in wallet…" : "Approve & swap"}</button>
             </div>
 
             <div className="amm-operation">
@@ -580,7 +593,7 @@ export function ElliquidPools() {
                 <input inputMode="decimal" value={removeSharesInput} onChange={(event) => setRemoveSharesInput(event.target.value)} placeholder="0.0" />
               </label>
               <div className="section-meta">Withdrawals remain available if the protocol is paused. You must own the LP shares you redeem.</div>
-              <button className="amm-button secondary" onClick={() => void removeLiquidity()} disabled={isPending || !wallet}>{isPending ? "Confirm in wallet…" : "Approve & remove liquidity"}</button>
+              <button className="amm-button secondary" onClick={() => void removeLiquidity()} disabled={isPending || busy || !wallet}>{isPending ? "Confirm in wallet…" : "Approve & remove liquidity"}</button>
             </div>
           </> : <div className="empty-state">Select a pool to trade, add liquidity or withdraw LP shares.</div>}
         </section>
