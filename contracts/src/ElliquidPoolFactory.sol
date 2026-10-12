@@ -137,29 +137,32 @@ contract ElliquidPoolFactory {
     }
 
     function startPauseGuardianUpdate(address newGuardian) external onlyOwner {
-        require(newGuardian != address(0) && newGuardian != owner, "BAD_GUARDIAN");
+        require(
+            newGuardian != address(0) && newGuardian != owner && newGuardian != pendingOwner,
+            "BAD_GUARDIAN"
+        );
         pendingPauseGuardian = newGuardian;
         emit PauseGuardianUpdateStarted(pauseGuardian, newGuardian);
     }
 
     function acceptPauseGuardianUpdate() external {
         require(msg.sender == pendingPauseGuardian, "PENDING_GUARDIAN");
-        address previousGuardian = pauseGuardian;
+        require(msg.sender != owner && msg.sender != pendingOwner, "ROLE_COLLISION");
         pauseGuardian = msg.sender;
         pendingPauseGuardian = address(0);
         emit PauseGuardianSet(pauseGuardian);
-        // Event log records replacement; previous guardian is included in update-start event.
-        previousGuardian;
     }
 
     function startOwnershipTransfer(address newOwner) external onlyOwner {
         require(newOwner != address(0), "BAD_OWNER");
+        require(newOwner != pauseGuardian && newOwner != pendingPauseGuardian, "ROLE_COLLISION");
         pendingOwner = newOwner;
         emit OwnershipTransferStarted(owner, newOwner);
     }
 
     function acceptOwnership() external {
         require(msg.sender == pendingOwner, "PENDING_OWNER");
+        require(msg.sender != pauseGuardian && msg.sender != pendingPauseGuardian, "ROLE_COLLISION");
         address previousOwner = owner;
         owner = msg.sender;
         pendingOwner = address(0);
