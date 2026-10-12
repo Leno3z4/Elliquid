@@ -66,7 +66,7 @@ The native AMM is separate from `ElliquidVaultFactory`. Do not replace any alrea
 
 Compile `contracts/src/ElliquidPool.sol`, `ElliquidPoolFactory.sol` and `ElliquidRouter.sol` with Solidity 0.8.24, optimizer enabled (200 runs) and `viaIR` enabled. Use the latest version from the native AMM feature branch.
 
-1. Deploy `ElliquidPoolFactory` with `initialOwner = your governance wallet` and `initialFeeBps = 30` (0.30%). Save the factory address.
+1. Deploy `ElliquidPoolFactory` with `initialOwner = your governance/multisig wallet`, `initialPauseGuardian = a separate emergency wallet`, and `initialFeeBps = 30` (0.30%). The owner and guardian addresses must differ. Save the factory address.
 2. Call `setTokenAllowed(token, true)` for each asset you intend to support. Only allowlist known ERC-20 contracts with standard, non-rebasing, non-fee-on-transfer behavior.
 3. Deploy `ElliquidRouter` with the new `ElliquidPoolFactory` address. Save the router address.
 4. Call `createPool(tokenA, tokenB)` in the factory. Duplicate pairs are rejected; token order is normalized automatically.
@@ -86,13 +86,13 @@ These are testnet assets, not mainnet assets or a price guarantee. Balances may 
 
 **Important initial-price rule:** the first liquidity provider sets the pool's initial token ratio. It is not automatically matched to a market price and this AMM is not an oracle. Before adding liquidity, decide the intended initial ratio and use a tiny test amount. Do not treat a newly seeded pool's spot price as a trusted oracle for vault NAV, collateral or risk decisions.
 
-Emergency pause: the factory owner can call `setPaused(true)`; swaps and new liquidity additions stop, but LP withdrawals remain available. Only the factory owner can unpause.
+Emergency pause: either the factory owner or the separate pause guardian can call `setPaused(true)`; swaps, new liquidity additions and new pool creation stop, but LP withdrawals remain available. Only the factory owner can unpause or change the token allowlist/fees. Guardian rotation is two-step: owner calls `startPauseGuardianUpdate(newGuardian)`, then the new guardian calls `acceptPauseGuardianUpdate()`.
 
 #### Reproducible Foundry deployment (split to respect EIP-170)
 
 The deployment code is split into two scripts because a single script that embeds both deployment bytecodes exceeds the EVM runtime code-size limit. Use `contracts/.env.example` as a template and run the commands from the `contracts` directory.
 
-1. Copy `.env.example` to `.env`. Set `OWNER` to your governance wallet and `DEFAULT_FEE_BPS=30`. Keep `.env` uncommitted.
+1. Copy `.env.example` to `.env`. Set `OWNER` to your governance/multisig wallet, `PAUSE_GUARDIAN` to a different emergency wallet, and `DEFAULT_FEE_BPS=30`. Keep `.env` uncommitted.
 2. Set `DEPLOYER_PRIVATE_KEY` only in your local shell / secret manager. The funded deployer must have testnet HYPE for gas. Never paste the key into chat or commit it.
 3. Deploy the factory:
 
