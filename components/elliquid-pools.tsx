@@ -631,7 +631,7 @@ export function ElliquidPools() {
             type="button"
             onClick={() => {
               setTokenAInput("0x7D29d8047B905000459c0E80c34a26CeedcB47b2");
-              setTokenBInput("0xCD57F65c2B0e5881CFC2E609F7CD53b746E1F234");
+              setTokenBInput("0xA5b72796E5bf80443DC134F3c8a1cc97dcCC39B9");
               setNotice({ kind: "info", text: "Filled the Elysium Testnet USDC (6 decimals) / WHYPE (18 decimals) contract addresses. Verify wallet balances before providing liquidity." });
             }}
           >
