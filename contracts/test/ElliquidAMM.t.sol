@@ -384,6 +384,16 @@ contract ElliquidAMMTest is Test {
         assertFalse(factory.paused(), "OWNER_CANNOT_UNPAUSE");
     }
 
+    function testOwnerAndPauseGuardianRolesCannotCollide() public {
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "ROLE_COLLISION"));
+        factory.startOwnershipTransfer(pauseGuardian);
+
+        address nextOwner = address(0xCAFE);
+        factory.startOwnershipTransfer(nextOwner);
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "BAD_GUARDIAN"));
+        factory.startPauseGuardianUpdate(nextOwner);
+    }
+
     function testPauseGuardianRotationRequiresNewGuardianAcceptance() public {
         address newGuardian = address(0xCAFE);
         factory.startPauseGuardianUpdate(newGuardian);
