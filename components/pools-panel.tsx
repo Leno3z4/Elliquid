@@ -127,12 +127,14 @@ export function PoolsPanel() {
   const contractsConfigured = Boolean(FACTORY && ROUTER);
 
   const poolCount = useReadContract({
+    chainId: elysiumTestnet.id,
     address: FACTORY ?? ZERO,
     abi: factoryAbi,
     functionName: "allPoolsLength",
     query: { enabled: Boolean(FACTORY), refetchInterval: 15000 },
   });
   const poolAddressesRead = useReadContract({
+    chainId: elysiumTestnet.id,
     address: FACTORY ?? ZERO,
     abi: factoryAbi,
     functionName: "getPools",
@@ -140,6 +142,7 @@ export function PoolsPanel() {
     query: { enabled: Boolean(FACTORY), refetchInterval: 15000 },
   });
   const selectedPoolRead = useReadContract({
+    chainId: elysiumTestnet.id,
     address: FACTORY ?? ZERO,
     abi: factoryAbi,
     functionName: "getPool",
@@ -150,18 +153,21 @@ export function PoolsPanel() {
     ? selectedPoolRead.data as Address
     : undefined;
   const factoryOwnerRead = useReadContract({
+    chainId: elysiumTestnet.id,
     address: FACTORY ?? ZERO,
     abi: factoryAbi,
     functionName: "owner",
     query: { enabled: Boolean(FACTORY) },
   });
   const pausedRead = useReadContract({
+    chainId: elysiumTestnet.id,
     address: FACTORY ?? ZERO,
     abi: factoryAbi,
     functionName: "paused",
     query: { enabled: Boolean(FACTORY), refetchInterval: 10000 },
   });
   const allowedARead = useReadContract({
+    chainId: elysiumTestnet.id,
     address: FACTORY ?? ZERO,
     abi: factoryAbi,
     functionName: "allowedTokens",
@@ -169,6 +175,7 @@ export function PoolsPanel() {
     query: { enabled: Boolean(FACTORY && tokenA), refetchInterval: 10000 },
   });
   const allowedBRead = useReadContract({
+    chainId: elysiumTestnet.id,
     address: FACTORY ?? ZERO,
     abi: factoryAbi,
     functionName: "allowedTokens",
@@ -176,10 +183,10 @@ export function PoolsPanel() {
     query: { enabled: Boolean(FACTORY && tokenB), refetchInterval: 10000 },
   });
 
-  const decimalsARead = useReadContract({ address: tokenA ?? ZERO, abi: erc20Abi, functionName: "decimals", query: { enabled: Boolean(tokenA) } });
-  const decimalsBRead = useReadContract({ address: tokenB ?? ZERO, abi: erc20Abi, functionName: "decimals", query: { enabled: Boolean(tokenB) } });
-  const symbolARead = useReadContract({ address: tokenA ?? ZERO, abi: erc20Abi, functionName: "symbol", query: { enabled: Boolean(tokenA) } });
-  const symbolBRead = useReadContract({ address: tokenB ?? ZERO, abi: erc20Abi, functionName: "symbol", query: { enabled: Boolean(tokenB) } });
+  const decimalsARead = useReadContract({ chainId: elysiumTestnet.id, address: tokenA ?? ZERO, abi: erc20Abi, functionName: "decimals", query: { enabled: Boolean(tokenA) } });
+  const decimalsBRead = useReadContract({ chainId: elysiumTestnet.id, address: tokenB ?? ZERO, abi: erc20Abi, functionName: "decimals", query: { enabled: Boolean(tokenB) } });
+  const symbolARead = useReadContract({ chainId: elysiumTestnet.id, address: tokenA ?? ZERO, abi: erc20Abi, functionName: "symbol", query: { enabled: Boolean(tokenA) } });
+  const symbolBRead = useReadContract({ chainId: elysiumTestnet.id, address: tokenB ?? ZERO, abi: erc20Abi, functionName: "symbol", query: { enabled: Boolean(tokenB) } });
   const decimalsA = decimalsARead.data === undefined ? undefined : Number(decimalsARead.data);
   const decimalsB = decimalsBRead.data === undefined ? undefined : Number(decimalsBRead.data);
 
@@ -189,6 +196,7 @@ export function PoolsPanel() {
   const rawShares = parseAmount(sharesInput, 18);
 
   const allowanceARead = useReadContract({
+    chainId: elysiumTestnet.id,
     address: tokenA ?? ZERO,
     abi: erc20Abi,
     functionName: "allowance",
@@ -196,6 +204,7 @@ export function PoolsPanel() {
     query: { enabled: Boolean(wallet && tokenA && ROUTER), refetchInterval: 5000 },
   });
   const allowanceBRead = useReadContract({
+    chainId: elysiumTestnet.id,
     address: tokenB ?? ZERO,
     abi: erc20Abi,
     functionName: "allowance",
@@ -203,6 +212,7 @@ export function PoolsPanel() {
     query: { enabled: Boolean(wallet && tokenB && ROUTER), refetchInterval: 5000 },
   });
   const lpAllowanceRead = useReadContract({
+    chainId: elysiumTestnet.id,
     address: selectedPool ?? ZERO,
     abi: poolAbi,
     functionName: "allowance",
@@ -210,6 +220,7 @@ export function PoolsPanel() {
     query: { enabled: Boolean(wallet && selectedPool && ROUTER), refetchInterval: 5000 },
   });
   const lpBalanceRead = useReadContract({
+    chainId: elysiumTestnet.id,
     address: selectedPool ?? ZERO,
     abi: poolAbi,
     functionName: "balanceOf",
@@ -218,6 +229,7 @@ export function PoolsPanel() {
   });
 
   const swapQuoteRead = useReadContract({
+    chainId: elysiumTestnet.id,
     address: ROUTER ?? ZERO,
     abi: routerAbi,
     functionName: "getAmountsOut",
@@ -228,6 +240,7 @@ export function PoolsPanel() {
   const minSwapOut = swapQuote === undefined ? 0n : swapQuote * BigInt(10000 - slippageBps) / BPS;
 
   const addQuoteRead = useReadContract({
+    chainId: elysiumTestnet.id,
     address: ROUTER ?? ZERO,
     abi: routerAbi,
     functionName: "previewAddLiquidity",
@@ -240,6 +253,7 @@ export function PoolsPanel() {
   const minShares = addQuote ? addQuote[2] * BigInt(10000 - slippageBps) / BPS : 0n;
 
   const removeQuoteRead = useReadContract({
+    chainId: elysiumTestnet.id,
     address: ROUTER ?? ZERO,
     abi: routerAbi,
     functionName: "previewRemoveLiquidity",
