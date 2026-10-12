@@ -132,3 +132,64 @@ h1 { font-size: clamp(30px, 4vw, 52px); line-height: 1; margin: 0; letter-spacin
   h1 { font-size: 34px; }
   .topbar-title { display: none; }
 }
+
+
+/* Native AMM UI */
+.amm-page { display: grid; gap: 14px; }
+.amm-heading { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-bottom: 17px; }
+.amm-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 20px; }
+.amm-stats > div, .amm-token-details > div {
+  display: grid; gap: 6px; padding: 15px; border: 1px solid var(--line); border-radius: 12px; background: #0b1219;
+}
+.amm-stats span, .amm-token-details span { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .07em; }
+.amm-stats strong { font-size: 17px; font-weight: 800; }
+.amm-ok { color: var(--accent); }
+.amm-danger { color: var(--danger); }
+.amm-create-grid, .amm-two-inputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+.amm-page label, .amm-config label { display: grid; gap: 7px; color: var(--soft); font-size: 11px; font-weight: 700; }
+.amm-page input, .amm-page select, .amm-config input {
+  width: 100%; min-width: 0; border: 1px solid #2a3946; border-radius: 10px; color: var(--text);
+  background: #080f15; padding: 11px 12px; outline: none; font-size: 12px;
+}
+.amm-page input:focus, .amm-page select:focus { border-color: #8dff9a; box-shadow: 0 0 0 2px rgba(141,255,154,.08); }
+.amm-page input:disabled { opacity: .6; }
+.amm-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 13px 0 14px; }
+.amm-button { border: 1px solid var(--accent); color: #07100a; background: var(--accent); padding: 10px 13px; border-radius: 10px; font-size: 11px; font-weight: 800; }
+.amm-button:hover { filter: brightness(.94); }
+.amm-button.secondary { border-color: #2a3946; background: #101a23; color: var(--soft); }
+.amm-button:disabled { cursor: not-allowed; opacity: .5; filter: none; }
+.amm-button.full { width: 100%; margin-top: 12px; }
+.amm-alert { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; margin-top: 12px; font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
+.amm-alert.error { color: #ffc2c6; border-color: rgba(255,126,134,.4); background: rgba(255,126,134,.06); }
+.amm-alert.success { color: #caffd0; border-color: rgba(141,255,154,.32); background: rgba(141,255,154,.05); }
+.amm-alert.info { color: var(--soft); }
+.amm-layout { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: 14px; align-items: start; }
+.amm-pill { border: 1px solid #2a3946; border-radius: 999px; padding: 5px 9px; color: var(--muted); font-size: 10px; white-space: nowrap; }
+.amm-pool-list { display: grid; gap: 8px; margin-top: 12px; }
+.amm-pool-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, auto) 12px; align-items: center; gap: 10px; width: 100%; padding: 12px; text-align: left; border: 1px solid var(--line); border-radius: 12px; background: #0b1219; color: var(--text); }
+.amm-pool-row:hover, .amm-pool-row.selected { border-color: #556779; background: #101b24; }
+.amm-pool-main, .amm-pool-reserves { display: grid; gap: 5px; min-width: 0; }
+.amm-pool-main strong { font-size: 12px; }
+.amm-pool-main span, .amm-pool-reserves span { color: var(--muted); font-size: 10px; overflow-wrap: anywhere; }
+.amm-pool-reserves { text-align: right; }
+.amm-chevron { color: var(--accent); }
+.amm-registry-meta { margin-top: 12px; }
+.amm-token-details { display: grid; gap: 8px; margin-top: 15px; }
+.amm-token-details strong { font-size: 14px; }
+.amm-token-details code, .amm-config code { color: #b4c7d7; font-size: 10px; overflow-wrap: anywhere; }
+.amm-slippage { margin-top: 14px; }
+.amm-slippage span { color: var(--muted); font-size: 10px; font-weight: 400; }
+.amm-operation { display: grid; gap: 11px; padding-top: 17px; margin-top: 17px; border-top: 1px solid var(--line); }
+.amm-operation-title { font-size: 12px; font-weight: 800; }
+.amm-operation .amm-button { width: 100%; }
+.amm-config p { max-width: 760px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+@media (max-width: 1080px) { .amm-layout { grid-template-columns: 1fr; } }
+@media (max-width: 640px) {
+  .amm-heading { align-items: flex-start; flex-direction: column; }
+  .amm-stats { grid-template-columns: 1fr; }
+  .amm-create-grid, .amm-two-inputs { grid-template-columns: 1fr; }
+  .amm-pool-row { grid-template-columns: minmax(0, 1fr) minmax(0, auto); }
+  .amm-chevron { display: none; }
+  .amm-pool-main strong { font-size: 11px; }
+  .amm-pool-reserves span { font-size: 9px; }
+}
