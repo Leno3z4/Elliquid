@@ -101,8 +101,10 @@ contract ElliquidPool {
             if (root <= MINIMUM_LIQUIDITY) return (amount0Desired, amount1Desired, 0);
             return (amount0Desired, amount1Desired, root - MINIMUM_LIQUIDITY);
         }
-        require(reserve0 > 0 && reserve1 > 0, "EMPTY_RESERVES");
-        uint256 amount1Optimal = (amount0Desired * uint256(reserve1)) / uint256(reserve0);
+        uint256 balance0 = IERC20Pool(token0).balanceOf(address(this));
+        uint256 balance1 = IERC20Pool(token1).balanceOf(address(this));
+        require(balance0 > 0 && balance1 > 0, "EMPTY_RESERVES");
+        uint256 amount1Optimal = (amount0Desired * balance1) / balance0;
         if (amount1Optimal <= amount1Desired) {
             amount0 = amount0Desired;
             amount1 = amount1Optimal;
@@ -111,8 +113,8 @@ contract ElliquidPool {
             amount1 = amount1Desired;
         }
         if (amount0 == 0 || amount1 == 0) return (amount0, amount1, 0);
-        uint256 shares0 = (amount0 * totalSupply) / uint256(reserve0);
-        uint256 shares1 = (amount1 * totalSupply) / uint256(reserve1);
+        uint256 shares0 = (amount0 * totalSupply) / balance0;
+        uint256 shares1 = (amount1 * totalSupply) / balance1;
         shares = shares0 < shares1 ? shares0 : shares1;
     }
 
@@ -151,7 +153,7 @@ contract ElliquidPool {
                 amount0 = amount0Desired;
                 amount1 = amount1Optimal;
             } else {
-                uint256 amount0Optimal = (amount1Desired * uint256(reserve0)) / uint256(reserve1);
+                uint256 amount0Optimal = (amount1Desired * balance0) / balance1;
                 amount0 = amount0Optimal;
                 amount1 = amount1Desired;
             }
@@ -307,8 +309,10 @@ contract ElliquidPool {
     function quoteExactInput(address tokenIn, uint256 amountIn) external view returns (uint256 amountOut) {
         require(tokenIn == token0 || tokenIn == token1, "BAD_TOKEN_IN");
         require(amountIn > 0, "BAD_AMOUNT");
-        uint256 reserveIn = tokenIn == token0 ? uint256(reserve0) : uint256(reserve1);
-        uint256 reserveOut = tokenIn == token0 ? uint256(reserve1) : uint256(reserve0);
+        require(totalSupply > 0, "NO_LIQUIDITY");
+        uint256 reserveIn = IERC20Pool(tokenIn).balanceOf(address(this));
+        address tokenOut = tokenIn == token0 ? token1 : token0;
+        uint256 reserveOut = IERC20Pool(tokenOut).balanceOf(address(this));
         require(reserveIn > 0 && reserveOut > 0, "NO_LIQUIDITY");
         uint256 amountInAfterFee = amountIn * (BPS - feeBps);
         amountOut = (amountInAfterFee * reserveOut) / (reserveIn * BPS + amountInAfterFee);
