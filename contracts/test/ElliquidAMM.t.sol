@@ -7,6 +7,30 @@ import {ElliquidPoolFactory} from "../src/ElliquidPoolFactory.sol";
 import {ElliquidRouter} from "../src/ElliquidRouter.sol";
 import {MockERC20} from "./MockERC20.sol";
 
+contract FalseReturnERC20 {
+    mapping(address => uint256) public balanceOf;
+
+    function transfer(address, uint256) external pure returns (bool) {
+        return false;
+    }
+
+    function transferFrom(address, address, uint256) external pure returns (bool) {
+        return false;
+    }
+
+    function approve(address, uint256) external pure returns (bool) {
+        return true;
+    }
+
+    function decimals() external pure returns (uint8) {
+        return 18;
+    }
+
+    function symbol() external pure returns (string memory) {
+        return "FALSE";
+    }
+}
+
 contract ElliquidAMMTest is Test {
     MockERC20 internal tokenA;
     MockERC20 internal tokenB;
@@ -155,6 +179,20 @@ contract ElliquidAMMTest is Test {
             address(this),
             block.timestamp + 1 days
         );
+
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "AMM_PAUSED"));
+        router.addLiquidity(
+            address(tokenA),
+            address(tokenB),
+            1 ether,
+            1 ether,
+            0,
+            0,
+            1,
+            address(this),
+            block.timestamp + 1 days
+        );
+
         poolAB.approve(address(router), type(uint256).max);
 
         (uint256 amountA, uint256 amountB) = router.removeLiquidity(
@@ -334,6 +372,44 @@ contract ElliquidAMMTest is Test {
 
         assertEq(tokenA.balanceOf(address(this)), inputBefore, "INPUT_NOT_ATOMIC");
         assertEq(tokenB.balanceOf(address(this)), outputBefore, "OUTPUT_NOT_ATOMIC");
+    }
+
+    function testOwnerTransferRequiresPendingOwnerAcceptance() public {
+        address nextOwner = address(0xBEEF);
+        factory.startOwnershipTransfer(nextOwner);
+        assertEq(factory.owner(), address(this));
+        assertEq(factory.pendingOwner(), nextOwner);
+
+        vm.prank(address(0xBAD));
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "PENDING_OWNER"));
+        factory.acceptOwnership();
+
+        vm.prank(nextOwner);
+        factory.acceptOwnership();
+        assertEq(factory.owner(), nextOwner);
+        assertEq(factory.pendingOwner(), address(0));
+
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "OWNER"));
+        factory.setPaused(true);
+    }
+
+    function testFalseReturningTokenFailsClosed() public {
+        FalseReturnERC20 badToken = new FalseReturnERC20();
+        factory.setTokenAllowed(address(badToken), true);
+        factory.createPool(address(tokenA), address(badToken));
+
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "TRANSFER_FROM_FAILED"));
+        router.addLiquidity(
+            address(tokenA),
+            address(badToken),
+            10 ether,
+            10 ether,
+            0,
+            0,
+            1,
+            address(this),
+            block.timestamp + 1 days
+        );
     }
 
     function testPoolPaginationIsBounded() public {
