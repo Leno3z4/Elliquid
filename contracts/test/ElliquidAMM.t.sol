@@ -225,14 +225,15 @@ contract ElliquidAMMTest is Test {
         factory.setDefaultFeeBps(20);
     }
 
-    function testUnsolicitedTransferRequiresSyncBeforeSwap() public {
+    function testUnsolicitedTransferIsReconciledBeforeSwap() public {
         _seed(address(tokenA), address(tokenB));
         MockERC20(poolAB.token0()).transfer(address(poolAB), 1 ether);
 
         address[] memory path = new address[](2);
         path[0] = poolAB.token0();
         path[1] = poolAB.token1();
-        vm.expectRevert(abi.encodeWithSignature("Error(string)", "SYNC_REQUIRED0"));
+        uint256 outputBefore = MockERC20(poolAB.token1()).balanceOf(address(this));
+
         router.swapExactTokensForTokens(
             1 ether,
             0,
@@ -241,10 +242,11 @@ contract ElliquidAMMTest is Test {
             block.timestamp + 1 days
         );
 
-        poolAB.sync();
-        assertGt(router.getAmountsOut(1 ether, path)[1], 0);
+        (uint112 reserve0, uint112 reserve1,) = poolAB.getReserves();
+        assertGt(reserve0, 100 ether, "DONATION_NOT_RECONCILED");
+        assertLt(reserve1, 100 ether, "SWAP_OUTPUT_NOT_ACCOUNTED");
+        assertGt(MockERC20(poolAB.token1()).balanceOf(address(this)), outputBefore);
     }
-
 
     function testFuzz_ConstantProductInvariantDoesNotDecrease(uint96 rawAmount) public {
         _seed(address(tokenA), address(tokenB));
