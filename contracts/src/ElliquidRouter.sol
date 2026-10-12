@@ -252,6 +252,11 @@ contract ElliquidRouter {
         for (uint256 i = 0; i < path.length; i++) {
             require(path[i] != address(0), "BAD_TOKEN");
             if (i > 0) require(path[i] != path[i - 1], "SAME_HOP_TOKEN");
+            // Repeated tokens can revisit a pool whose reserves changed in an earlier hop,
+            // making a precomputed quote stale. Cyclic paths are deliberately not supported.
+            for (uint256 j = 0; j < i; j++) {
+                require(path[i] != path[j], "DUPLICATE_PATH_TOKEN");
+            }
         }
     }
 
