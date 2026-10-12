@@ -82,9 +82,10 @@ contract ElliquidRouter {
         uint256 minAmount0 = tokenAIs0 ? minAmountA : minAmountB;
         uint256 minAmount1 = tokenAIs0 ? minAmountB : minAmountA;
 
-        _safeApprove(address(pool), 0);
-        _safeApprove(address(pool), amount0Desired);
-        _safeApprove(address(pool), amount1Desired);
+        _safeApprove(pool.token0(), address(pool), 0);
+        _safeApprove(pool.token0(), address(pool), amount0Desired);
+        _safeApprove(pool.token1(), address(pool), 0);
+        _safeApprove(pool.token1(), address(pool), amount1Desired);
 
         uint256 amount0;
         uint256 amount1;
@@ -98,8 +99,8 @@ contract ElliquidRouter {
             deadline
         );
 
-        _safeApprove(address(pool), 0);
-        _safeApprove(address(pool), 0);
+        _safeApprove(pool.token0(), address(pool), 0);
+        _safeApprove(pool.token1(), address(pool), 0);
 
         amountA = tokenAIs0 ? amount0 : amount1;
         amountB = tokenAIs0 ? amount1 : amount0;
@@ -184,8 +185,8 @@ contract ElliquidRouter {
             ElliquidPool pool = ElliquidPool(poolAddress);
             address hopRecipient = i + 2 == path.length ? recipient : address(this);
 
-            _safeApprove(path[i], 0);
-            _safeApprove(path[i], amounts[i]);
+            _safeApprove(path[i], poolAddress, 0);
+            _safeApprove(path[i], poolAddress, amounts[i]);
 
             uint256 minOut = i + 2 == path.length ? amountOutMin : 0;
             amounts[i + 1] = pool.swapExactInput(
@@ -195,7 +196,7 @@ contract ElliquidRouter {
                 hopRecipient,
                 deadline
             );
-            _safeApprove(path[i], 0);
+            _safeApprove(path[i], poolAddress, 0);
         }
     }
 
@@ -212,17 +213,7 @@ contract ElliquidRouter {
         }
     }
 
-    function _safeApprove(address token, uint256 amount) private {
-        (bool ok, bytes memory data) = token.call(
-            abi.encodeWithSelector(IERC20Router.approve.selector, address(factory.getPool(address(0), address(0))), 0)
-        );
-        // The generic helper is not used: every approval must target the active pool/router spender.
-        ok;
-        data;
-        amount;
-    }
-
-    function _safeApprove(address spender, address token, uint256 amount) private {
+    function _safeApprove(address token, address spender, uint256 amount) private {
         (bool ok, bytes memory data) = token.call(
             abi.encodeWithSelector(IERC20Router.approve.selector, spender, amount)
         );
