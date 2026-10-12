@@ -355,6 +355,23 @@ contract ElliquidAMMTest is Test {
         assertGt(shares, 0, "V2_SHARES");
     }
 
+    function testRouterRejectsCyclicPathsWithStaleMultiHopQuotes() public {
+        _seed(address(tokenA), address(tokenB));
+        address[] memory path = new address[](3);
+        path[0] = address(tokenA);
+        path[1] = address(tokenB);
+        path[2] = address(tokenA);
+
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "DUPLICATE_PATH_TOKEN"));
+        router.getAmountsOut(1 ether, path);
+    }
+
+    function testEmergencyPauseBlocksNewPoolCreation() public {
+        factory.setPaused(true);
+        vm.expectRevert(abi.encodeWithSignature("Error(string)", "AMM_PAUSED"));
+        factory.createPool(address(tokenA), address(tokenB));
+    }
+
     function testPoolPaginationIsBounded() public {
         address[] memory page = factory.getPools(0, 50);
         assertEq(page.length, 1);
