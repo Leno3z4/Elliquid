@@ -500,6 +500,17 @@ export function ElliquidPools() {
           </label>
         </div>
         <div className="amm-actions">
+          <button
+            className="amm-button secondary"
+            type="button"
+            onClick={() => {
+              setTokenAInput("0x7D29d8047B905000459c0E80c34a26CeedcB47b2");
+              setTokenBInput("0xCD57F65c2B0e5881CFC2E609F7CD53b746E1F234");
+              setNotice({ kind: "info", text: "Filled the Elysium Testnet USDC (6 decimals) / WHYPE (18 decimals) contract addresses. Verify wallet balances before providing liquidity." });
+            }}
+          >
+            Prefill USDC / WHYPE testnet pair
+          </button>
           {factoryOwner && wallet?.toLowerCase() === factoryOwner.toLowerCase() && (
             <>
               <button className="amm-button secondary" onClick={() => void allowToken(tokenAInput)} disabled={isPending || busy || !isAddress(tokenAInput)}>Allowlist token A</button>
