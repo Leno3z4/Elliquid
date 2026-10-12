@@ -234,6 +234,7 @@ export function ElliquidPools() {
 
   useEffect(() => {
     let cancelled = false;
+    let quoteTimer: ReturnType<typeof setTimeout> | undefined;
     if (!client || !routerAddress || !selectedPool || !selectedPool.metadataOk || !swapAmountInput.trim()) {
       setSwapQuote(null);
       setQuoteError(null);
@@ -259,36 +260,42 @@ export function ElliquidPools() {
       setQuoteLoading(true);
       setQuoteError(null);
       const path = [inputToken, outputToken] as Address[];
-      void client.readContract({
-        address: routerAddress,
-        abi: routerAbi,
-        functionName: "getAmountsOut",
-        args: [amountIn, path],
-      }).then((amounts) => {
-        if (cancelled) return;
-        const slippage = BigInt(Math.max(1, Math.min(500, Number(slippageBps) || 100)));
-        const output = amounts[amounts.length - 1];
-        const minimum = output * (10_000n - slippage) / 10_000n;
-        setSwapQuote({
-          output: displayAmount(output, outputDecimals),
-          minimum: displayAmount(minimum, outputDecimals),
-          symbol: outputSymbol,
+      // Wait for typing to settle before calling a public RPC provider.
+      quoteTimer = setTimeout(() => {
+        void client.readContract({
+          address: routerAddress,
+          abi: routerAbi,
+          functionName: "getAmountsOut",
+          args: [amountIn, path],
+        }).then((amounts) => {
+          if (cancelled) return;
+          const slippage = BigInt(Math.max(1, Math.min(500, Number(slippageBps) || 100)));
+          const output = amounts[amounts.length - 1];
+          const minimum = output * (10_000n - slippage) / 10_000n;
+          setSwapQuote({
+            output: displayAmount(output, outputDecimals),
+            minimum: displayAmount(minimum, outputDecimals),
+            symbol: outputSymbol,
+          });
+          setQuoteError(null);
+        }).catch((error: unknown) => {
+          if (cancelled) return;
+          setSwapQuote(null);
+          setQuoteError(messageOf(error));
+        }).finally(() => {
+          if (!cancelled) setQuoteLoading(false);
         });
-        setQuoteError(null);
-      }).catch((error: unknown) => {
-        if (cancelled) return;
-        setSwapQuote(null);
-        setQuoteError(messageOf(error));
-      }).finally(() => {
-        if (!cancelled) setQuoteLoading(false);
-      });
+      }, 250);
     } catch {
       setSwapQuote(null);
       setQuoteError(null);
       setQuoteLoading(false);
     }
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (quoteTimer !== undefined) clearTimeout(quoteTimer);
+    };
   }, [client, routerAddress, selectedPool, swapAmountInput, swapTokenIn, slippageBps]);
 
   useEffect(() => {
