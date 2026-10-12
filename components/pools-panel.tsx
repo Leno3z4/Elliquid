@@ -5,7 +5,6 @@ import {
   formatUnits,
   getAddress,
   isAddress,
-  maxUint256,
   parseUnits,
   type Address,
 } from "viem";
@@ -423,7 +422,7 @@ export function PoolsPanel() {
               </select>
             </label>
             {(allowanceARead.data ?? 0n) < rawSwap && rawSwap > 0n ? (
-              <button className="pool-button secondary" disabled={busy || !networkOk || !isConnected || !tokenA || !ROUTER} onClick={() => tokenA && ROUTER && submit({ address: tokenA, abi: erc20Abi, functionName: "approve", args: [ROUTER, maxUint256], chainId: elysiumTestnet.id })}>Approve Token A</button>
+              <button className="pool-button secondary" disabled={busy || !networkOk || !isConnected || !tokenA || !ROUTER} onClick={() => tokenA && ROUTER && submit({ address: tokenA, abi: erc20Abi, functionName: "approve", args: [ROUTER, rawSwap], chainId: elysiumTestnet.id })}>Approve Token A</button>
             ) : (
               <button className="pool-button" disabled={!FACTORY || !ROUTER || !isConnected || !networkOk || !selectedPool || pausedRead.data === true || rawSwap === 0n || swapQuote === undefined || busy} onClick={() => ROUTER && wallet && tokenA && tokenB && submit({ address: ROUTER, abi: routerAbi, functionName: "swapExactTokensForTokens", args: [rawSwap, minSwapOut, [tokenA, tokenB], wallet, deadline()], chainId: elysiumTestnet.id })}>Swap tokens</button>
             )}
@@ -443,9 +442,9 @@ export function PoolsPanel() {
               <div><span>Estimated LP shares</span><strong>{addQuote ? displayAmount(addQuote[2], 18) : "—"}</strong></div>
             </div>
             {(allowanceARead.data ?? 0n) < rawA && rawA > 0n ? (
-              <button className="pool-button secondary" disabled={busy || !networkOk || !tokenA || !ROUTER} onClick={() => tokenA && ROUTER && submit({ address: tokenA, abi: erc20Abi, functionName: "approve", args: [ROUTER, maxUint256], chainId: elysiumTestnet.id })}>Approve Token A</button>
+              <button className="pool-button secondary" disabled={busy || !networkOk || !tokenA || !ROUTER} onClick={() => tokenA && ROUTER && submit({ address: tokenA, abi: erc20Abi, functionName: "approve", args: [ROUTER, rawA], chainId: elysiumTestnet.id })}>Approve Token A</button>
             ) : (allowanceBRead.data ?? 0n) < rawB && rawB > 0n ? (
-              <button className="pool-button secondary" disabled={busy || !networkOk || !tokenB || !ROUTER} onClick={() => tokenB && ROUTER && submit({ address: tokenB, abi: erc20Abi, functionName: "approve", args: [ROUTER, maxUint256], chainId: elysiumTestnet.id })}>Approve Token B</button>
+              <button className="pool-button secondary" disabled={busy || !networkOk || !tokenB || !ROUTER} onClick={() => tokenB && ROUTER && submit({ address: tokenB, abi: erc20Abi, functionName: "approve", args: [ROUTER, rawB], chainId: elysiumTestnet.id })}>Approve Token B</button>
             ) : (
               <button className="pool-button" disabled={!FACTORY || !ROUTER || !isConnected || !networkOk || !selectedPool || pausedRead.data === true || rawA === 0n || rawB === 0n || !addQuote || minShares === 0n || busy} onClick={() => ROUTER && wallet && tokenA && tokenB && addQuote && submit({ address: ROUTER, abi: routerAbi, functionName: "addLiquidity", args: [tokenA, tokenB, rawA, rawB, minA, minB, minShares, wallet, deadline()], chainId: elysiumTestnet.id })}>Add liquidity</button>
             )}
@@ -460,7 +459,7 @@ export function PoolsPanel() {
             <label className="pool-field"><span>LP shares to remove</span><input value={sharesInput} onChange={(event) => setSharesInput(event.target.value)} inputMode="decimal" placeholder="0.0" /></label>
             <div className="pool-quote"><div><span>Estimated token output</span><strong>{removeQuote ? displayAmount(removeQuote[0], decimalsA) + " " + String(symbolARead.data ?? "A") + " / " + displayAmount(removeQuote[1], decimalsB) + " " + String(symbolBRead.data ?? "B") : "—"}</strong></div></div>
             {(lpAllowanceRead.data ?? 0n) < rawShares && rawShares > 0n ? (
-              <button className="pool-button secondary" disabled={busy || !networkOk || !selectedPool || !ROUTER} onClick={() => selectedPool && ROUTER && submit({ address: selectedPool, abi: erc20Abi, functionName: "approve", args: [ROUTER, maxUint256], chainId: elysiumTestnet.id })}>Approve LP shares</button>
+              <button className="pool-button secondary" disabled={busy || !networkOk || !selectedPool || !ROUTER} onClick={() => selectedPool && ROUTER && submit({ address: selectedPool, abi: erc20Abi, functionName: "approve", args: [ROUTER, rawShares], chainId: elysiumTestnet.id })}>Approve LP shares</button>
             ) : (
               <button className="pool-button" disabled={!FACTORY || !ROUTER || !isConnected || !networkOk || !selectedPool || rawShares === 0n || !removeQuote || busy} onClick={() => ROUTER && wallet && tokenA && tokenB && removeQuote && submit({ address: ROUTER, abi: routerAbi, functionName: "removeLiquidity", args: [tokenA, tokenB, rawShares, minRemoveA, minRemoveB, wallet, deadline()], chainId: elysiumTestnet.id })}>Remove liquidity</button>
             )}
