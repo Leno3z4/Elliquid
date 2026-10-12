@@ -289,7 +289,7 @@ contract ElliquidAMMTest is Test {
         );
 
         assertEq(mintedShares, quotedShares, "INITIAL_SHARE_PREVIEW_MISMATCH");
-        assertEq(mintedShares, 101 ether - factory.defaultFeeBps() * 0, "DONATION_NOT_ACCOUNTED");
+        assertEq(mintedShares, 101 ether - poolAB.MINIMUM_LIQUIDITY(), "DONATION_NOT_ACCOUNTED");
     }
 
     function testFuzz_ConstantProductInvariantDoesNotDecrease(uint96 rawAmount) public {
