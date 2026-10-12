@@ -194,27 +194,47 @@ contract ElliquidPool {
         require(amountIn > 0 && amountIn <= type(uint112).max, "BAD_AMOUNT");
         require(tokenIn == token0 || tokenIn == token1, "BAD_TOKEN_IN");
         _requireSynced();
+        return _executeSwap(tokenIn, amountIn, amountOutMin, recipient);
+    }
 
+    struct SwapState {
+        uint256 reserveIn;
+        uint256 reserveOut;
+        address tokenOut;
+        uint256 inputBefore;
+        uint256 recipientBefore;
+    }
+
+    function _executeSwap(
+        address tokenIn,
+        uint256 amountIn,
+        uint256 amountOutMin,
+        address recipient
+    ) internal returns (uint256 amountOut) {
+        SwapState memory s;
         bool zeroForOne = tokenIn == token0;
-        uint256 reserveIn = zeroForOne ? uint256(reserve0) : uint256(reserve1);
-        uint256 reserveOut = zeroForOne ? uint256(reserve1) : uint256(reserve0);
-        require(reserveIn > 0 && reserveOut > 0, "NO_LIQUIDITY");
+        s.reserveIn = zeroForOne ? uint256(reserve0) : uint256(reserve1);
+        s.reserveOut = zeroForOne ? uint256(reserve1) : uint256(reserve0);
+        s.tokenOut = zeroForOne ? token1 : token0;
+        require(s.reserveIn > 0 && s.reserveOut > 0, "NO_LIQUIDITY");
 
-        address tokenOut = zeroForOne ? token1 : token0;
-        uint256 inputBefore = IERC20Pool(tokenIn).balanceOf(address(this));
+        s.inputBefore = IERC20Pool(tokenIn).balanceOf(address(this));
         _safeTransferFrom(tokenIn, msg.sender, address(this), amountIn);
         uint256 inputAfter = IERC20Pool(tokenIn).balanceOf(address(this));
-        require(inputAfter >= inputBefore && inputAfter - inputBefore == amountIn, "UNSUPPORTED_INPUT_TOKEN");
+        require(inputAfter >= s.inputBefore && inputAfter - s.inputBefore == amountIn, "UNSUPPORTED_INPUT_TOKEN");
 
         uint256 amountInAfterFee = amountIn * (BPS - feeBps);
-        amountOut = (amountInAfterFee * reserveOut) / (reserveIn * BPS + amountInAfterFee);
-        require(amountOut > 0 && amountOut < reserveOut, "INSUFFICIENT_OUTPUT");
+        amountOut = (amountInAfterFee * s.reserveOut) / (s.reserveIn * BPS + amountInAfterFee);
+        require(amountOut > 0 && amountOut < s.reserveOut, "INSUFFICIENT_OUTPUT");
         require(amountOut >= amountOutMin, "MINIMUM_OUTPUT");
 
-        uint256 recipientBefore = IERC20Pool(tokenOut).balanceOf(recipient);
-        _safeTransfer(tokenOut, recipient, amountOut);
-        uint256 recipientAfter = IERC20Pool(tokenOut).balanceOf(recipient);
-        require(recipientAfter >= recipientBefore && recipientAfter - recipientBefore == amountOut, "UNSUPPORTED_OUTPUT_TOKEN");
+        s.recipientBefore = IERC20Pool(s.tokenOut).balanceOf(recipient);
+        _safeTransfer(s.tokenOut, recipient, amountOut);
+        uint256 recipientAfter = IERC20Pool(s.tokenOut).balanceOf(recipient);
+        require(
+            recipientAfter >= s.recipientBefore && recipientAfter - s.recipientBefore == amountOut,
+            "UNSUPPORTED_OUTPUT_TOKEN"
+        );
 
         _update(
             IERC20Pool(token0).balanceOf(address(this)),
